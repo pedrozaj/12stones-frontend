@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card } from "@/components/ui";
-import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+import { ArrowRightIcon, CheckIcon, XIcon } from "@/components/icons";
 import { api } from "@/lib/api";
 
 interface ContentItem {
   id: string;
   type: "photo" | "video";
   thumbnail_url: string | null;
-  r2_key: string;
+  original_url: string | null;
   original_caption: string | null;
   taken_at: string | null;
   included_in_narrative: boolean;
@@ -38,6 +39,7 @@ export default function ProjectPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -201,6 +203,7 @@ export default function ProjectPage({
                     item={item}
                     isSelected={selectedIds.has(item.id)}
                     onToggle={() => toggleSelection(item.id)}
+                    onPreview={() => setPreviewItem(item)}
                   />
                 ))}
               </div>
@@ -220,6 +223,7 @@ export default function ProjectPage({
                     item={item}
                     isSelected={selectedIds.has(item.id)}
                     onToggle={() => toggleSelection(item.id)}
+                    onPreview={() => setPreviewItem(item)}
                   />
                 ))}
               </div>
@@ -251,6 +255,59 @@ export default function ProjectPage({
           </p>
         </div>
       )}
+
+      {/* Lightbox Modal */}
+      {previewItem && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPreviewItem(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+            onClick={() => setPreviewItem(null)}
+          >
+            <XIcon className="w-8 h-8" />
+          </button>
+
+          <div
+            className="relative max-w-4xl max-h-[90vh] w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewItem.type === "photo" ? (
+              previewItem.original_url ? (
+                <img
+                  src={previewItem.original_url}
+                  alt={previewItem.original_caption || "Photo"}
+                  className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+                />
+              ) : (
+                <div className="w-full h-64 bg-gray-800 rounded-lg flex items-center justify-center">
+                  <span className="text-gray-400">Image not available</span>
+                </div>
+              )
+            ) : previewItem.original_url ? (
+              <video
+                src={previewItem.original_url}
+                controls
+                autoPlay
+                className="w-full max-h-[80vh] rounded-lg"
+              >
+                Your browser does not support video playback.
+              </video>
+            ) : (
+              <div className="w-full h-64 bg-gray-800 rounded-lg flex items-center justify-center">
+                <span className="text-gray-400">Video not available</span>
+              </div>
+            )}
+
+            {previewItem.original_caption && (
+              <p className="text-white text-center mt-4 px-4">
+                {previewItem.original_caption}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -259,16 +316,33 @@ function ContentCard({
   item,
   isSelected,
   onToggle,
+  onPreview,
 }: {
   item: ContentItem;
   isSelected: boolean;
   onToggle: () => void;
+  onPreview: () => void;
 }) {
-  const thumbnailUrl = item.thumbnail_url || "/placeholder-image.jpg";
+  const thumbnailUrl = item.thumbnail_url || item.original_url;
+  const [imageError, setImageError] = useState(false);
+
+  const handleClick = (e: React.MouseEvent) => {
+    // If clicking the selection checkbox area, toggle selection
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    const isCheckboxArea = clickX > rect.width - 40 && clickY < 40;
+
+    if (isCheckboxArea) {
+      onToggle();
+    } else {
+      onPreview();
+    }
+  };
 
   return (
     <button
-      onClick={onToggle}
+      onClick={handleClick}
       className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
         isSelected
           ? "border-primary ring-2 ring-primary/20"
@@ -277,22 +351,36 @@ function ContentCard({
     >
       {/* Thumbnail */}
       <div className="absolute inset-0 bg-input">
-        {item.type === "video" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <span className="text-2xl">🎬</span>
+        {thumbnailUrl && !imageError ? (
+          <img
+            src={thumbnailUrl}
+            alt={item.original_caption || "Content"}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
+            <span className="text-2xl">{item.type === "video" ? "🎬" : "📷"}</span>
           </div>
         )}
-        {item.type === "photo" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
-            <span className="text-2xl">📷</span>
+        {/* Video overlay */}
+        {item.type === "video" && thumbnailUrl && !imageError && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+              <span className="text-white text-xl ml-1">▶</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Selection indicator */}
+      {/* Selection checkbox */}
       <div
-        className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-          isSelected ? "bg-primary text-white" : "bg-black/30 text-white"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+          isSelected ? "bg-primary text-white" : "bg-black/50 text-white hover:bg-black/70"
         }`}
       >
         {isSelected ? (
