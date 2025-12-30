@@ -245,8 +245,7 @@ export default function UploadPage() {
           type="file"
           multiple
           accept="image/*,video/*"
-          className="absolute opacity-0 w-px h-px overflow-hidden"
-          style={{ left: '-9999px' }}
+          className="sr-only"
           onChange={(e) => e.target.files && handleFiles(e.target.files)}
         />
 
@@ -400,8 +399,7 @@ export default function UploadPage() {
               ref={instagramInputRef}
               type="file"
               accept=".zip"
-              className="absolute opacity-0 w-px h-px overflow-hidden"
-              style={{ left: '-9999px' }}
+              className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
