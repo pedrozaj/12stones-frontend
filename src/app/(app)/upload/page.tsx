@@ -208,10 +208,18 @@ export default function UploadPage() {
         });
 
         xhr.addEventListener("error", () => {
-          reject(new Error("Network error during upload"));
+          reject(new Error("Network error - check your connection and try again"));
         });
 
-        xhr.open("POST", `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`);
+        xhr.addEventListener("timeout", () => {
+          reject(new Error("Upload timed out - file may be too large"));
+        });
+
+        xhr.timeout = 300000; // 5 minute timeout for large files
+
+        const uploadUrl = `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`;
+        console.log("Uploading to:", uploadUrl);
+        xhr.open("POST", uploadUrl);
         if (token) {
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         }
