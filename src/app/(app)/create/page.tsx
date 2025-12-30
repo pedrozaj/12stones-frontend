@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input, Card } from "@/components/ui";
@@ -37,7 +37,7 @@ const MEMORIAL_TYPES = [
   },
 ];
 
-export default function CreateMemorialPage() {
+function CreateMemorialContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedType = searchParams.get("type");
@@ -251,5 +251,13 @@ export default function CreateMemorialPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CreateMemorialPage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 py-6">Loading...</div>}>
+      <CreateMemorialContent />
+    </Suspense>
   );
 }

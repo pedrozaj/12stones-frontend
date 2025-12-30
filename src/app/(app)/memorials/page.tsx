@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PlayIcon, GridIcon, PlusIcon } from "@/components/icons";
@@ -15,7 +15,7 @@ const MOCK_MEMORIALS = [
   { id: "6", title: "Baby's First Year", year: null, type: "family", count: 120, coverUrl: null },
 ];
 
-export default function MemorialsPage() {
+function MemorialsContent() {
   const searchParams = useSearchParams();
   const typeFilter = searchParams.get("type");
   const [filter, setFilter] = useState<string | null>(typeFilter);
@@ -144,5 +144,13 @@ function MemorialGridCard({
       </h3>
       <p className="text-xs text-foreground-muted">{memorial.count} memories</p>
     </Link>
+  );
+}
+
+export default function MemorialsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-6">Loading...</div>}>
+      <MemorialsContent />
+    </Suspense>
   );
 }

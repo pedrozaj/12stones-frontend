@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button, Card } from "@/components/ui";
 import { CheckIcon, ArrowRightIcon } from "@/components/icons";
@@ -37,7 +37,7 @@ const SOCIAL_PLATFORMS = [
   },
 ];
 
-export default function ConnectionsPage() {
+function ConnectionsContent() {
   const searchParams = useSearchParams();
   const justConnected = searchParams.get("connected");
 
@@ -240,5 +240,13 @@ export default function ConnectionsPage() {
         never share your information with third parties.
       </p>
     </div>
+  );
+}
+
+export default function ConnectionsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 py-6">Loading...</div>}>
+      <ConnectionsContent />
+    </Suspense>
   );
 }
