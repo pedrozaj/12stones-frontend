@@ -180,7 +180,8 @@ export default function UploadPage() {
       // Use XMLHttpRequest for upload progress tracking
       const result = await new Promise<InstagramImportResult>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        // Hardcode for now to debug - env var should be: process.env.NEXT_PUBLIC_API_URL
+        const API_URL = "https://insightful-surprise-production.up.railway.app";
         const token = localStorage.getItem("access_token");
 
         xhr.upload.addEventListener("progress", (event) => {
