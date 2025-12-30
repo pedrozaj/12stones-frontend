@@ -192,7 +192,10 @@ function CreateMemorialContent() {
           </p>
 
           <div className="space-y-3">
-            <Card className="p-4 hover:bg-input transition-colors cursor-pointer">
+            <Card
+              className="p-4 hover:bg-input transition-colors cursor-pointer"
+              onClick={() => router.push("/connections")}
+            >
               <div className="flex items-center gap-4">
                 <span className="text-2xl">📱</span>
                 <div className="flex-1">
@@ -207,7 +210,10 @@ function CreateMemorialContent() {
               </div>
             </Card>
 
-            <Card className="p-4 hover:bg-input transition-colors cursor-pointer">
+            <Card
+              className="p-4 hover:bg-input transition-colors cursor-pointer"
+              onClick={() => router.push("/upload")}
+            >
               <div className="flex items-center gap-4">
                 <span className="text-2xl">📤</span>
                 <div className="flex-1">
@@ -222,7 +228,10 @@ function CreateMemorialContent() {
               </div>
             </Card>
 
-            <Card className="p-4 hover:bg-input transition-colors cursor-pointer">
+            <Card
+              className="p-4 hover:bg-input transition-colors cursor-pointer"
+              onClick={handleCreate}
+            >
               <div className="flex items-center gap-4">
                 <span className="text-2xl">⏭️</span>
                 <div className="flex-1">
