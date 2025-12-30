@@ -48,6 +48,8 @@ export default function UploadPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const instagramInputRef = useRef<HTMLInputElement>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Project selection state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -177,6 +179,10 @@ export default function UploadPage() {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const token = localStorage.getItem("access_token");
 
+    // Create AbortController for fetch requests
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       // Step 1: Get presigned URL for direct R2 upload
       const urlResponse = await fetch(
@@ -185,6 +191,7 @@ export default function UploadPage() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: abortController.signal,
         }
       );
 
@@ -198,6 +205,7 @@ export default function UploadPage() {
       // Step 2: Upload directly to R2 with progress tracking
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        xhrRef.current = xhr;
 
         xhr.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) {
@@ -208,6 +216,7 @@ export default function UploadPage() {
         });
 
         xhr.addEventListener("load", () => {
+          xhrRef.current = null;
           if (xhr.status >= 200 && xhr.status < 300) {
             setUploadProgress(90);
             resolve();
@@ -217,11 +226,18 @@ export default function UploadPage() {
         });
 
         xhr.addEventListener("error", () => {
+          xhrRef.current = null;
           reject(new Error("Upload failed - CORS may not be configured. See docs for R2 CORS setup."));
         });
 
         xhr.addEventListener("timeout", () => {
+          xhrRef.current = null;
           reject(new Error("Upload timed out - file may be too large"));
+        });
+
+        xhr.addEventListener("abort", () => {
+          xhrRef.current = null;
+          reject(new Error("Upload cancelled"));
         });
 
         xhr.open("PUT", upload_url);
@@ -239,6 +255,7 @@ export default function UploadPage() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: abortController.signal,
         }
       );
 
@@ -252,11 +269,29 @@ export default function UploadPage() {
       setImportResult(result);
       setInstagramFile(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to import Instagram data";
-      setImportError(message);
+      // Don't show error message if user cancelled
+      if (err instanceof Error && (err.message === "Upload cancelled" || err.name === "AbortError")) {
+        // User cancelled - just reset state silently
+      } else {
+        const message = err instanceof Error ? err.message : "Failed to import Instagram data";
+        setImportError(message);
+      }
     } finally {
+      xhrRef.current = null;
+      abortControllerRef.current = null;
       setIsImporting(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleCancelUpload = () => {
+    // Abort XHR upload if in progress
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+    }
+    // Abort fetch requests if in progress
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -522,19 +557,26 @@ export default function UploadPage() {
                   </div>
                 </div>
               )}
-              <Button
-                className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                onClick={handleInstagramImport}
-                isLoading={isImporting}
-                disabled={isImporting || !selectedProjectId}
-              >
-                {!selectedProjectId
-                  ? "Select a project first"
-                  : isImporting
-                    ? "Processing..."
+              {isImporting ? (
+                <Button
+                  variant="outline"
+                  className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  onClick={handleCancelUpload}
+                >
+                  Cancel Upload
+                </Button>
+              ) : (
+                <Button
+                  className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                  onClick={handleInstagramImport}
+                  disabled={!selectedProjectId}
+                >
+                  {!selectedProjectId
+                    ? "Select a project first"
                     : "Upload & Import"}
-                {!isImporting && <ArrowRightIcon className="w-4 h-4" />}
-              </Button>
+                  <ArrowRightIcon className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           )}
 
