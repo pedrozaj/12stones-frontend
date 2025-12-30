@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { format } from "date-fns";
 import { Button, Card } from "@/components/ui";
 import { CheckIcon, ArrowRightIcon } from "@/components/icons";
 
@@ -123,7 +124,7 @@ export default function VoiceClonePage() {
     const token = localStorage.getItem("access_token");
 
     const formData = new FormData();
-    formData.append("name", `Voice Profile ${new Date().toLocaleDateString()}`);
+    formData.append("name", `Voice Profile ${format(new Date(), "MMM d, yyyy")}`);
     Object.entries(recordings).forEach(([step, blob]) => {
       formData.append("samples", blob, `recording_${step}.webm`);
     });
@@ -405,7 +406,7 @@ export default function VoiceClonePage() {
                   </p>
                 </div>
                 <p className="text-xs text-foreground-muted">
-                  {new Date(profile.created_at).toLocaleDateString()}
+                  {format(new Date(profile.created_at), "MMM d, yyyy")}
                 </p>
               </div>
             </Card>
