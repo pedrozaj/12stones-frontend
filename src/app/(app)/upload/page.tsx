@@ -245,7 +245,17 @@ export default function UploadPage() {
           type="file"
           multiple
           accept="image/*,video/*"
-          className="sr-only"
+          style={{
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: 0,
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0,
+          }}
           onChange={(e) => e.target.files && handleFiles(e.target.files)}
         />
 
@@ -399,7 +409,17 @@ export default function UploadPage() {
               ref={instagramInputRef}
               type="file"
               accept=".zip"
-              className="sr-only"
+              style={{
+                position: 'absolute',
+                width: '1px',
+                height: '1px',
+                padding: 0,
+                margin: '-1px',
+                overflow: 'hidden',
+                clip: 'rect(0, 0, 0, 0)',
+                whiteSpace: 'nowrap',
+                border: 0,
+              }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
