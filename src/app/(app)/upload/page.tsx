@@ -580,9 +580,9 @@ export default function UploadPage() {
                   </ul>
                 </div>
               )}
-              <Link href={`/create?project=${selectedProjectId}`} className="block mt-4">
+              <Link href={`/project/${selectedProjectId}`} className="block mt-4">
                 <Button className="w-full">
-                  Continue to Create Memorial
+                  Review & Continue
                   <ArrowRightIcon className="w-4 h-4" />
                 </Button>
               </Link>
