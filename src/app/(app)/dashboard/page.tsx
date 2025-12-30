@@ -5,16 +5,9 @@ import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui";
 import { PlayIcon, ArrowRightIcon } from "@/components/icons";
 
-// Mock data - would come from API in the future
-const MOCK_MILESTONES = [
-  { id: "1", year: "2024", title: "A Different Dream", coverUrl: "/placeholder.jpg", count: 12 },
-  { id: "2", year: "2023", title: "New Beginnings", coverUrl: "/placeholder.jpg", count: 8 },
-];
-
-const MOCK_FAMILY = [
-  { id: "1", title: "Christmas 2024", coverUrl: "/placeholder.jpg", count: 24 },
-  { id: "2", title: "Summer Vacation", coverUrl: "/placeholder.jpg", count: 45 },
-];
+// Empty arrays - data would come from API
+const MOCK_MILESTONES: { id: string; year: string; title: string; coverUrl: string; count: number }[] = [];
+const MOCK_FAMILY: { id: string; title: string; coverUrl: string; count: number }[] = [];
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
