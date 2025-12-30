@@ -190,6 +190,11 @@ export default function UploadPage() {
           }
         });
 
+        xhr.upload.addEventListener("loadend", () => {
+          // Upload complete, now waiting for server to process
+          setUploadProgress(100);
+        });
+
         xhr.addEventListener("load", () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
@@ -215,7 +220,7 @@ export default function UploadPage() {
           reject(new Error("Upload timed out - file may be too large"));
         });
 
-        xhr.timeout = 300000; // 5 minute timeout for large files
+        xhr.timeout = 600000; // 10 minute timeout for large files with processing
 
         const uploadUrl = `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`;
         console.log("Uploading to:", uploadUrl);
@@ -478,12 +483,16 @@ export default function UploadPage() {
               {isImporting && uploadProgress > 0 && (
                 <div className="mb-3">
                   <div className="flex justify-between text-sm text-foreground-muted mb-1">
-                    <span>Uploading...</span>
-                    <span>{uploadProgress}%</span>
+                    <span>{uploadProgress >= 100 ? "Processing on server..." : "Uploading..."}</span>
+                    <span>{uploadProgress >= 100 ? "Please wait" : `${uploadProgress}%`}</span>
                   </div>
                   <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-300"
+                      className={`h-full transition-all duration-300 ${
+                        uploadProgress >= 100
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse"
+                          : "bg-gradient-to-r from-pink-500 to-purple-500"
+                      }`}
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
