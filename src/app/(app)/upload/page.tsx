@@ -220,11 +220,10 @@ export default function UploadPage() {
           reject(new Error("Upload timed out - file may be too large"));
         });
 
-        xhr.timeout = 600000; // 10 minute timeout for large files with processing
-
         const uploadUrl = `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`;
         console.log("Uploading to:", uploadUrl);
         xhr.open("POST", uploadUrl);
+        xhr.timeout = 600000; // 10 minute timeout - must be set after open()
         if (token) {
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         }
