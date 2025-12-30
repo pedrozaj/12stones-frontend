@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { Button, Card } from "@/components/ui";
 import { CheckIcon, ArrowRightIcon } from "@/components/icons";
 import { api } from "@/lib/api";
@@ -579,6 +580,12 @@ export default function UploadPage() {
                   </ul>
                 </div>
               )}
+              <Link href={`/create?project=${selectedProjectId}`} className="block mt-4">
+                <Button className="w-full">
+                  Continue to Create Memorial
+                  <ArrowRightIcon className="w-4 h-4" />
+                </Button>
+              </Link>
             </Card>
           )}
 
