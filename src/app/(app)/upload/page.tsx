@@ -173,64 +173,81 @@ export default function UploadPage() {
     setImportError(null);
     setImportResult(null);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", instagramFile);
+    const API_URL = "https://insightful-surprise-production.up.railway.app";
+    const token = localStorage.getItem("access_token");
 
-      // Use XMLHttpRequest for upload progress tracking
-      const result = await new Promise<InstagramImportResult>((resolve, reject) => {
+    try {
+      // Step 1: Get presigned URL for direct R2 upload
+      const urlResponse = await fetch(
+        `${API_URL}/api/import/instagram/upload-url?filename=${encodeURIComponent(instagramFile.name)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!urlResponse.ok) {
+        const errorData = await urlResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to get upload URL");
+      }
+
+      const { upload_url, key } = await urlResponse.json();
+
+      // Step 2: Upload directly to R2 with progress tracking
+      await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        // Hardcode for now to debug - env var should be: process.env.NEXT_PUBLIC_API_URL
-        const API_URL = "https://insightful-surprise-production.up.railway.app";
-        const token = localStorage.getItem("access_token");
 
         xhr.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
+            // Upload is 0-90%, processing is 90-100%
+            const progress = Math.round((event.loaded / event.total) * 90);
             setUploadProgress(progress);
           }
         });
 
-        xhr.upload.addEventListener("loadend", () => {
-          // Upload complete, now waiting for server to process
-          setUploadProgress(100);
-        });
-
         xhr.addEventListener("load", () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              resolve(JSON.parse(xhr.responseText));
-            } catch {
-              reject(new Error("Invalid response from server"));
-            }
+            setUploadProgress(90);
+            resolve();
           } else {
-            try {
-              const errorData = JSON.parse(xhr.responseText);
-              reject(new Error(errorData.detail || `Upload failed: ${xhr.status}`));
-            } catch {
-              reject(new Error(`Upload failed: ${xhr.status}`));
-            }
+            reject(new Error(`Upload to storage failed: ${xhr.status}`));
           }
         });
 
         xhr.addEventListener("error", () => {
-          reject(new Error("Network error - check your connection and try again"));
+          reject(new Error("Network error during upload - check your connection"));
         });
 
         xhr.addEventListener("timeout", () => {
           reject(new Error("Upload timed out - file may be too large"));
         });
 
-        const uploadUrl = `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`;
-        console.log("Uploading to:", uploadUrl);
-        xhr.open("POST", uploadUrl);
-        xhr.timeout = 600000; // 10 minute timeout - must be set after open()
-        if (token) {
-          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        }
-        xhr.send(formData);
+        xhr.open("PUT", upload_url);
+        xhr.timeout = 600000; // 10 minute timeout
+        xhr.setRequestHeader("Content-Type", "application/zip");
+        xhr.send(instagramFile);
       });
 
+      // Step 3: Process the uploaded file
+      setUploadProgress(95);
+      const processResponse = await fetch(
+        `${API_URL}/api/import/instagram/process?project_id=${selectedProjectId}&r2_key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!processResponse.ok) {
+        const errorData = await processResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to process import");
+      }
+
+      const result: InstagramImportResult = await processResponse.json();
+      setUploadProgress(100);
       setImportResult(result);
       setInstagramFile(null);
     } catch (err) {
@@ -483,8 +500,14 @@ export default function UploadPage() {
               {isImporting && uploadProgress > 0 && (
                 <div className="mb-3">
                   <div className="flex justify-between text-sm text-foreground-muted mb-1">
-                    <span>{uploadProgress >= 100 ? "Processing on server..." : "Uploading..."}</span>
-                    <span>{uploadProgress >= 100 ? "Please wait" : `${uploadProgress}%`}</span>
+                    <span>
+                      {uploadProgress < 90
+                        ? "Uploading to cloud..."
+                        : uploadProgress < 100
+                          ? "Processing your photos..."
+                          : "Complete!"}
+                    </span>
+                    <span>{uploadProgress}%</span>
                   </div>
                   <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
