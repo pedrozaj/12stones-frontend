@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:schema": "cd ../12stones-backend && ./venv/bin/python scripts/generate_schema.py",
+    "generate:api-docs": "cd ../12stones-backend && ./venv/bin/python scripts/generate_api_docs.py"
   },
   "dependencies": {
     "next": "16.1.1",

@@ -173,7 +173,7 @@ export default function UploadPage() {
     setImportError(null);
     setImportResult(null);
 
-    const API_URL = "https://insightful-surprise-production.up.railway.app";
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const token = localStorage.getItem("access_token");
 
     try {
