@@ -505,35 +505,43 @@ export default function UploadPage() {
               <ol className="text-sm text-foreground-muted space-y-3">
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">1</span>
-                  <span>Open the Instagram app on your phone</span>
+                  <span>Open the Instagram app → Profile → Menu (☰) → <strong>Settings and privacy</strong></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">2</span>
-                  <span>Go to Profile → Menu (☰) → Accounts Center</span>
+                  <span>Tap <strong>Accounts Center</strong> → <strong>Your information and permissions</strong></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">3</span>
-                  <span>Tap &quot;Download your information&quot;</span>
+                  <span>Tap <strong>Export your information</strong> → <strong>Create export</strong></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">4</span>
-                  <span>Select &quot;Some of your information&quot; → &quot;Posts&quot;</span>
+                  <span>Select <strong>Export to device</strong> → Tap <strong>Customize information</strong></span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">5</span>
-                  <span><strong>Important:</strong> Select &quot;JSON&quot; as the format (not HTML)</span>
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">5</span>
+                  <span>Select <strong>Media</strong> (your photos and videos)</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">6</span>
-                  <span>Tap &quot;Create files&quot; and wait for the download link (may take a few hours)</span>
+                  <span>Select date range: Choose <strong>All time</strong> for your full history</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">7</span>
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">7</span>
+                  <span><strong>Important:</strong> Select <strong>JSON</strong> as the format (not HTML)</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">8</span>
+                  <span>Submit the request and wait for the email with your download link</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">9</span>
                   <span>Download the ZIP file and upload it here</span>
                 </li>
               </ol>
               <p className="mt-4 text-xs text-foreground-muted">
-                Note: The export process may take a few hours to complete. You&apos;ll receive a notification when ready.
+                Note: The export usually takes a few minutes to a few hours. You&apos;ll receive an email when it&apos;s ready. The download link expires after 4 days.
               </p>
             </Card>
           )}
