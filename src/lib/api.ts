@@ -117,6 +117,36 @@ export const authApi = {
   setToken: setStoredToken,
 };
 
+// File upload helper
+async function uploadRequest<T>(
+  endpoint: string,
+  formData: FormData,
+  options: RequestOptions = {}
+): Promise<T> {
+  const { skipAuth, ...fetchOptions } = options;
+  const token = getStoredToken();
+
+  const headers: HeadersInit = {
+    // Don't set Content-Type - browser will set it with boundary for multipart
+    ...(token && !skipAuth && { Authorization: `Bearer ${token}` }),
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...fetchOptions,
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new APIError(response.status, response.statusText, data.detail);
+  }
+
+  return response.json();
+}
+
 // Generic API methods
 export const api = {
   get: <T>(endpoint: string, options?: RequestOptions) =>
@@ -145,6 +175,9 @@ export const api = {
 
   delete: <T>(endpoint: string, options?: RequestOptions) =>
     request<T>(endpoint, { ...options, method: "DELETE" }),
+
+  upload: <T>(endpoint: string, formData: FormData, options?: RequestOptions) =>
+    uploadRequest<T>(endpoint, formData, options),
 };
 
 export { APIError };

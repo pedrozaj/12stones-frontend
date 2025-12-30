@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button, Card } from "@/components/ui";
 import { CheckIcon, ArrowRightIcon } from "@/components/icons";
+import { api } from "@/lib/api";
+
+interface Project {
+  id: string;
+  title: string;
+  status: string;
+}
 
 interface UploadedFile {
   id: string;
@@ -11,11 +18,76 @@ interface UploadedFile {
   type: "image" | "video";
 }
 
+interface InstagramImportResult {
+  success: boolean;
+  imported_count: number;
+  imported_items: Array<{
+    filename: string;
+    type: string;
+    caption: string | null;
+  }>;
+  errors: string[];
+  message: string;
+}
+
+type TabType = "device" | "instagram";
+
 export default function UploadPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("device");
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Instagram import state
+  const [instagramFile, setInstagramFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<InstagramImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const instagramInputRef = useRef<HTMLInputElement>(null);
+
+  // Project selection state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+
+  // Fetch projects on mount
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const data = await api.get<Project[]>("/api/projects");
+        setProjects(data);
+        if (data.length > 0) {
+          setSelectedProjectId(data[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to fetch projects:", err);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  const handleCreateProject = async () => {
+    setIsCreatingProject(true);
+    try {
+      const newProject = await api.post<Project>("/api/projects", {
+        title: "Instagram Import",
+        timeframe_start: new Date().toISOString().split("T")[0],
+        timeframe_end: new Date().toISOString().split("T")[0],
+      });
+      setProjects((prev) => [newProject, ...prev]);
+      setSelectedProjectId(newProject.id);
+    } catch (err) {
+      console.error("Failed to create project:", err);
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
 
   const handleFiles = useCallback((fileList: FileList) => {
     const newFiles: UploadedFile[] = [];
@@ -92,6 +164,32 @@ export default function UploadPage() {
     }
   };
 
+  const handleInstagramImport = async () => {
+    if (!instagramFile || !selectedProjectId) return;
+
+    setIsImporting(true);
+    setImportError(null);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", instagramFile);
+
+      const result = await api.upload<InstagramImportResult>(
+        `/api/import/instagram/upload?project_id=${selectedProjectId}`,
+        formData
+      );
+
+      setImportResult(result);
+      setInstagramFile(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to import Instagram data";
+      setImportError(message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
@@ -100,11 +198,37 @@ export default function UploadPage() {
           Upload Photos & Videos
         </h1>
         <p className="text-foreground-muted">
-          Add photos and videos from your device to create memories.
+          Add photos and videos from your device or import from Instagram.
         </p>
       </div>
 
-      {/* Drop Zone */}
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setActiveTab("device")}
+          className={`flex-1 py-3 px-4 rounded-radius-lg font-medium transition-colors ${
+            activeTab === "device"
+              ? "bg-primary text-primary-foreground"
+              : "bg-input text-foreground-muted hover:bg-input/80"
+          }`}
+        >
+          From Device
+        </button>
+        <button
+          onClick={() => setActiveTab("instagram")}
+          className={`flex-1 py-3 px-4 rounded-radius-lg font-medium transition-colors ${
+            activeTab === "instagram"
+              ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white"
+              : "bg-input text-foreground-muted hover:bg-input/80"
+          }`}
+        >
+          From Instagram
+        </button>
+      </div>
+
+      {activeTab === "device" && (
+        <>
+        {/* Drop Zone */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -216,6 +340,205 @@ export default function UploadPage() {
           <li>• Vertical videos are great for mobile viewing</li>
         </ul>
       </Card>
+        </>
+      )}
+
+      {activeTab === "instagram" && (
+        <>
+          {/* Project Selector */}
+          <Card className="mb-6 p-4">
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Import to Project
+            </label>
+            {isLoadingProjects ? (
+              <div className="text-sm text-foreground-muted">Loading projects...</div>
+            ) : projects.length === 0 ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-foreground-muted">No projects yet.</span>
+                <Button
+                  size="sm"
+                  onClick={handleCreateProject}
+                  isLoading={isCreatingProject}
+                  disabled={isCreatingProject}
+                >
+                  Create Project
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-radius-lg border border-border bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCreateProject}
+                  isLoading={isCreatingProject}
+                  disabled={isCreatingProject}
+                >
+                  New
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          {/* Instagram Import Zone */}
+          <div
+            onClick={() => instagramInputRef.current?.click()}
+            className="border-2 border-dashed rounded-radius-xl p-8 text-center cursor-pointer transition-colors border-pink-300 hover:border-pink-400 bg-gradient-to-br from-pink-50 to-purple-50"
+          >
+            <input
+              ref={instagramInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setInstagramFile(file);
+                  setImportResult(null);
+                  setImportError(null);
+                }
+              }}
+            />
+
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">📸</span>
+            </div>
+
+            <p className="font-medium text-foreground mb-1">
+              {instagramFile ? instagramFile.name : "Upload Instagram Data Export"}
+            </p>
+            <p className="text-sm text-foreground-muted mb-4">
+              {instagramFile
+                ? `${(instagramFile.size / 1024 / 1024).toFixed(1)} MB`
+                : "Click to select your Instagram ZIP file"}
+            </p>
+            <p className="text-xs text-foreground-muted">
+              Accepts ZIP files from Instagram&apos;s &quot;Download Your Information&quot; feature
+            </p>
+          </div>
+
+          {/* Import Button */}
+          {instagramFile && (
+            <Button
+              className="w-full mt-6 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+              onClick={handleInstagramImport}
+              isLoading={isImporting}
+              disabled={isImporting || !selectedProjectId}
+            >
+              {!selectedProjectId ? "Select a project first" : "Import from Instagram"}
+              <ArrowRightIcon className="w-4 h-4" />
+            </Button>
+          )}
+
+          {/* Import Error */}
+          {importError && (
+            <Card className="mt-6 p-4 bg-red-500/10 border-red-500/20">
+              <p className="text-red-600 text-sm">{importError}</p>
+            </Card>
+          )}
+
+          {/* Import Success */}
+          {importResult && (
+            <Card className="mt-6 p-4 bg-green-500/10 border-green-500/20">
+              <div className="flex items-center gap-3 mb-3">
+                <CheckIcon className="w-5 h-5 text-green-500" />
+                <p className="font-medium text-green-700">{importResult.message}</p>
+              </div>
+              {importResult.imported_items.length > 0 && (
+                <div className="text-sm text-foreground-muted">
+                  <p className="mb-2">Imported items preview:</p>
+                  <ul className="space-y-1">
+                    {importResult.imported_items.slice(0, 5).map((item, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span>{item.type === "video" ? "🎬" : "📷"}</span>
+                        <span className="truncate">{item.filename}</span>
+                      </li>
+                    ))}
+                    {importResult.imported_items.length > 5 && (
+                      <li className="text-foreground-muted">
+                        ...and {importResult.imported_items.length - 5} more
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              {importResult.errors.length > 0 && (
+                <div className="mt-3 text-sm text-amber-600">
+                  <p>Some items could not be imported:</p>
+                  <ul className="list-disc list-inside">
+                    {importResult.errors.slice(0, 3).map((error, i) => (
+                      <li key={i}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Instructions Toggle */}
+          <button
+            onClick={() => setShowInstructions(!showInstructions)}
+            className="w-full mt-6 text-sm text-primary hover:text-primary/80 flex items-center justify-center gap-2"
+          >
+            {showInstructions ? "Hide" : "Show"} export instructions
+            <span className={`transform transition-transform ${showInstructions ? "rotate-180" : ""}`}>
+              ▼
+            </span>
+          </button>
+
+          {/* Instagram Export Instructions */}
+          {showInstructions && (
+            <Card className="mt-4 p-6 bg-gradient-to-br from-pink-50 to-purple-50 border-pink-200">
+              <h3 className="font-semibold text-foreground mb-4">
+                How to Export Your Instagram Data
+              </h3>
+              <ol className="text-sm text-foreground-muted space-y-3">
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">1</span>
+                  <span>Open the Instagram app on your phone</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">2</span>
+                  <span>Go to Profile → Menu (☰) → Accounts Center</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">3</span>
+                  <span>Tap &quot;Download your information&quot;</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">4</span>
+                  <span>Select &quot;Some of your information&quot; → &quot;Posts&quot;</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">5</span>
+                  <span><strong>Important:</strong> Select &quot;JSON&quot; as the format (not HTML)</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">6</span>
+                  <span>Tap &quot;Create files&quot; and wait for the download link (may take a few hours)</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center">7</span>
+                  <span>Download the ZIP file and upload it here</span>
+                </li>
+              </ol>
+              <p className="mt-4 text-xs text-foreground-muted">
+                Note: The export process may take a few hours to complete. You&apos;ll receive a notification when ready.
+              </p>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   );
 }
