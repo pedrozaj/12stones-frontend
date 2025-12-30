@@ -177,77 +177,59 @@ export default function UploadPage() {
     const token = localStorage.getItem("access_token");
 
     try {
-      // Step 1: Get presigned URL for direct R2 upload
-      const urlResponse = await fetch(
-        `${API_URL}/api/import/instagram/upload-url?filename=${encodeURIComponent(instagramFile.name)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const formData = new FormData();
+      formData.append("file", instagramFile);
 
-      if (!urlResponse.ok) {
-        const errorData = await urlResponse.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to get upload URL");
-      }
-
-      const { upload_url, key } = await urlResponse.json();
-
-      // Step 2: Upload directly to R2 with progress tracking
-      await new Promise<void>((resolve, reject) => {
+      // Upload through backend with progress tracking
+      const result = await new Promise<InstagramImportResult>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
 
         xhr.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) {
-            // Upload is 0-90%, processing is 90-100%
             const progress = Math.round((event.loaded / event.total) * 90);
             setUploadProgress(progress);
           }
         });
 
+        xhr.upload.addEventListener("loadend", () => {
+          setUploadProgress(95);
+        });
+
         xhr.addEventListener("load", () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress(90);
-            resolve();
+            try {
+              setUploadProgress(100);
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error("Invalid response from server"));
+            }
           } else {
-            reject(new Error(`Upload to storage failed: ${xhr.status}`));
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.detail || `Upload failed: ${xhr.status}`));
+            } catch {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
           }
         });
 
         xhr.addEventListener("error", () => {
-          reject(new Error("Network error during upload - check your connection"));
+          reject(new Error("Network error - check your connection and try again"));
         });
 
         xhr.addEventListener("timeout", () => {
           reject(new Error("Upload timed out - file may be too large"));
         });
 
-        xhr.open("PUT", upload_url);
+        const uploadUrl = `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`;
+        xhr.open("POST", uploadUrl);
         xhr.timeout = 600000; // 10 minute timeout
-        xhr.setRequestHeader("Content-Type", "application/zip");
-        xhr.send(instagramFile);
+        if (token) {
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        }
+        xhr.send(formData);
       });
 
-      // Step 3: Process the uploaded file
-      setUploadProgress(95);
-      const processResponse = await fetch(
-        `${API_URL}/api/import/instagram/process?project_id=${selectedProjectId}&r2_key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!processResponse.ok) {
-        const errorData = await processResponse.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to process import");
-      }
-
-      const result: InstagramImportResult = await processResponse.json();
-      setUploadProgress(100);
       setImportResult(result);
       setInstagramFile(null);
     } catch (err) {
@@ -502,7 +484,7 @@ export default function UploadPage() {
                   <div className="flex justify-between text-sm text-foreground-muted mb-1">
                     <span>
                       {uploadProgress < 90
-                        ? "Uploading to cloud..."
+                        ? "Uploading..."
                         : uploadProgress < 100
                           ? "Processing your photos..."
                           : "Complete!"}
