@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button, Card } from "@/components/ui";
 import { CheckIcon, ArrowRightIcon } from "@/components/icons";
+
+interface VoiceProfile {
+  id: string;
+  name: string;
+  status: "processing" | "ready" | "failed";
+  sample_duration: number | null;
+  created_at: string;
+}
 
 const RECORDING_STEPS = [
   {
@@ -31,8 +39,39 @@ export default function VoiceClonePage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+  const [showRecorder, setShowRecorder] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // Fetch existing voice profiles
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const token = localStorage.getItem("access_token");
+
+      try {
+        const response = await fetch(`${API_URL}/api/voice/profiles`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setVoiceProfiles(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch voice profiles:", err);
+      } finally {
+        setIsLoadingProfiles(false);
+      }
+    };
+
+    fetchProfiles();
+  }, [isComplete]);
 
   const startRecording = async () => {
     try {
@@ -78,27 +117,37 @@ export default function VoiceClonePage() {
 
   const handleSubmit = async () => {
     setIsProcessing(true);
+    setError(null);
 
-    // In a real implementation, this would upload recordings to the backend
-    // and trigger ElevenLabs voice cloning
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const token = localStorage.getItem("access_token");
+
     const formData = new FormData();
+    formData.append("name", `Voice Profile ${new Date().toLocaleDateString()}`);
     Object.entries(recordings).forEach(([step, blob]) => {
-      formData.append(`recording_${step}`, blob, `recording_${step}.webm`);
+      formData.append("samples", blob, `recording_${step}.webm`);
     });
 
     try {
-      // TODO: Implement actual API call to backend
-      // const response = await fetch('/api/voice/clone', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
+      const response = await fetch(`${API_URL}/api/voice/profiles`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
-      // Simulate processing time
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to create voice profile");
+      }
+
       setIsComplete(true);
+      setRecordings({});
+      setCurrentStep(0);
     } catch (err) {
       console.error("Error submitting recordings:", err);
-      alert("Failed to process voice recordings. Please try again.");
+      setError(err instanceof Error ? err.message : "Failed to process voice recordings");
     } finally {
       setIsProcessing(false);
     }
@@ -116,10 +165,15 @@ export default function VoiceClonePage() {
         <p className="text-foreground-muted mb-8">
           Your AI voice clone is ready. It will be used to narrate your video memorials.
         </p>
-        <Button onClick={() => window.location.href = "/dashboard"}>
-          Return to Dashboard
-          <ArrowRightIcon className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-3 justify-center">
+          <Button variant="outline" onClick={() => { setIsComplete(false); setShowRecorder(false); }}>
+            View My Profiles
+          </Button>
+          <Button onClick={() => window.location.href = "/dashboard"}>
+            Return to Dashboard
+            <ArrowRightIcon className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -146,112 +200,228 @@ export default function VoiceClonePage() {
   const step = RECORDING_STEPS[currentStep];
   const hasRecording = recordings[currentStep];
 
+  // Show recorder UI
+  if (showRecorder) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => { setShowRecorder(false); setRecordings({}); setCurrentStep(0); }}
+            className="text-sm text-foreground-muted hover:text-foreground mb-4 flex items-center gap-1"
+          >
+            ← Back to profiles
+          </button>
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            Clone Your Voice
+          </h1>
+          <p className="text-foreground-muted">
+            Record a few samples so we can create an AI voice that sounds like you.
+          </p>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <Card className="mb-6 p-4 bg-red-500/10 border-red-500/20">
+            <p className="text-red-600 text-sm">{error}</p>
+          </Card>
+        )}
+
+        {/* Progress */}
+        <div className="flex gap-2 mb-8">
+          {RECORDING_STEPS.map((s, i) => (
+            <div
+              key={s.id}
+              className={`flex-1 h-2 rounded-full transition-colors ${
+                i < currentStep
+                  ? "bg-primary"
+                  : i === currentStep
+                  ? "bg-primary/50"
+                  : "bg-border"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Current Step */}
+        <Card className="p-6 mb-6">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+              {currentStep + 1}
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground">{step.title}</h2>
+              <p className="text-sm text-foreground-muted">{step.description}</p>
+            </div>
+          </div>
+
+          {/* Script */}
+          <div className="bg-input rounded-radius-lg p-4 mb-6">
+            <p className="text-sm text-foreground-muted mb-2">
+              {currentStep === 1 ? "Speak naturally:" : "Read aloud:"}
+            </p>
+            <p className="text-foreground italic">&quot;{step.script}&quot;</p>
+          </div>
+
+          {/* Recording Controls */}
+          <div className="flex flex-col items-center gap-4">
+            {isRecording ? (
+              <>
+                <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center animate-pulse">
+                  <MicIcon className="w-8 h-8 text-white" />
+                </div>
+                <p className="text-sm text-foreground-muted">Recording...</p>
+                <Button variant="secondary" onClick={stopRecording}>
+                  Stop Recording
+                </Button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={startRecording}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-colors ${
+                    hasRecording
+                      ? "bg-green-500/10 border-2 border-green-500"
+                      : "bg-primary/10 hover:bg-primary/20"
+                  }`}
+                >
+                  {hasRecording ? (
+                    <CheckIcon className="w-8 h-8 text-green-500" />
+                  ) : (
+                    <MicIcon className="w-8 h-8 text-primary" />
+                  )}
+                </button>
+                <p className="text-sm text-foreground-muted">
+                  {hasRecording ? "Recording saved! Tap to re-record" : "Tap to start recording"}
+                </p>
+              </>
+            )}
+          </div>
+        </Card>
+
+        {/* Navigation */}
+        <div className="flex gap-3">
+          {currentStep > 0 && (
+            <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)}>
+              Back
+            </Button>
+          )}
+          <Button
+            className="flex-1"
+            disabled={!hasRecording}
+            onClick={handleNext}
+          >
+            {currentStep === RECORDING_STEPS.length - 1 ? "Create Voice Profile" : "Next Step"}
+            <ArrowRightIcon className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Privacy Note */}
+        <p className="text-xs text-foreground-muted text-center mt-8">
+          Your voice recordings are encrypted and used only to create your personal AI voice clone.
+          They are never shared with third parties.
+        </p>
+      </div>
+    );
+  }
+
+  // Show voice profiles list
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">
-          Clone Your Voice
-        </h1>
-        <p className="text-foreground-muted">
-          Record a few samples so we can create an AI voice that sounds like you.
-        </p>
-      </div>
-
-      {/* Progress */}
-      <div className="flex gap-2 mb-8">
-        {RECORDING_STEPS.map((s, i) => (
-          <div
-            key={s.id}
-            className={`flex-1 h-2 rounded-full transition-colors ${
-              i < currentStep
-                ? "bg-primary"
-                : i === currentStep
-                ? "bg-primary/50"
-                : "bg-border"
-            }`}
-          />
-        ))}
-      </div>
-
-      {/* Current Step */}
-      <Card className="p-6 mb-6">
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-            {currentStep + 1}
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground">{step.title}</h2>
-            <p className="text-sm text-foreground-muted">{step.description}</p>
-          </div>
-        </div>
-
-        {/* Script */}
-        <div className="bg-input rounded-radius-lg p-4 mb-6">
-          <p className="text-sm text-foreground-muted mb-2">
-            {currentStep === 1 ? "Speak naturally:" : "Read aloud:"}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            My Voice Profiles
+          </h1>
+          <p className="text-foreground-muted">
+            Your AI voice clones for narrating memorials.
           </p>
-          <p className="text-foreground italic">&quot;{step.script}&quot;</p>
         </div>
-
-        {/* Recording Controls */}
-        <div className="flex flex-col items-center gap-4">
-          {isRecording ? (
-            <>
-              <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center animate-pulse">
-                <MicIcon className="w-8 h-8 text-white" />
-              </div>
-              <p className="text-sm text-foreground-muted">Recording...</p>
-              <Button variant="secondary" onClick={stopRecording}>
-                Stop Recording
-              </Button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={startRecording}
-                className={`w-20 h-20 rounded-full flex items-center justify-center transition-colors ${
-                  hasRecording
-                    ? "bg-green-500/10 border-2 border-green-500"
-                    : "bg-primary/10 hover:bg-primary/20"
-                }`}
-              >
-                {hasRecording ? (
-                  <CheckIcon className="w-8 h-8 text-green-500" />
-                ) : (
-                  <MicIcon className="w-8 h-8 text-primary" />
-                )}
-              </button>
-              <p className="text-sm text-foreground-muted">
-                {hasRecording ? "Recording saved! Tap to re-record" : "Tap to start recording"}
-              </p>
-            </>
-          )}
-        </div>
-      </Card>
-
-      {/* Navigation */}
-      <div className="flex gap-3">
-        {currentStep > 0 && (
-          <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)}>
-            Back
-          </Button>
-        )}
-        <Button
-          className="flex-1"
-          disabled={!hasRecording}
-          onClick={handleNext}
-        >
-          {currentStep === RECORDING_STEPS.length - 1 ? "Create Voice Profile" : "Next Step"}
-          <ArrowRightIcon className="w-4 h-4" />
+        <Button onClick={() => setShowRecorder(true)}>
+          <MicIcon className="w-4 h-4" />
+          New Profile
         </Button>
       </div>
 
-      {/* Privacy Note */}
-      <p className="text-xs text-foreground-muted text-center mt-8">
-        Your voice recordings are encrypted and used only to create your personal AI voice clone.
-        They are never shared with third parties.
-      </p>
+      {/* Voice Profiles List */}
+      {isLoadingProfiles ? (
+        <div className="space-y-4">
+          {[1, 2].map((i) => (
+            <Card key={i} className="p-4 animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-input" />
+                <div className="flex-1">
+                  <div className="h-4 bg-input rounded w-1/3 mb-2" />
+                  <div className="h-3 bg-input rounded w-1/4" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : voiceProfiles.length === 0 ? (
+        <Card className="p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <MicIcon className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="font-semibold text-foreground mb-2">No voice profiles yet</h2>
+          <p className="text-foreground-muted mb-6">
+            Create your first AI voice clone to narrate your memorials.
+          </p>
+          <Button onClick={() => setShowRecorder(true)}>
+            Create Voice Profile
+            <ArrowRightIcon className="w-4 h-4" />
+          </Button>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {voiceProfiles.map((profile) => (
+            <Card key={profile.id} className="p-4">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  profile.status === "ready"
+                    ? "bg-green-500/10"
+                    : profile.status === "processing"
+                    ? "bg-yellow-500/10"
+                    : "bg-red-500/10"
+                }`}>
+                  {profile.status === "ready" ? (
+                    <CheckIcon className="w-6 h-6 text-green-500" />
+                  ) : profile.status === "processing" ? (
+                    <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span className="text-red-500">!</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-medium text-foreground">{profile.name}</h3>
+                  <p className="text-sm text-foreground-muted">
+                    {profile.status === "ready"
+                      ? "Ready to use"
+                      : profile.status === "processing"
+                      ? "Processing..."
+                      : "Failed to create"}
+                    {profile.sample_duration && ` • ${profile.sample_duration}s of audio`}
+                  </p>
+                </div>
+                <p className="text-xs text-foreground-muted">
+                  {new Date(profile.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Info Card */}
+      <Card className="mt-8 p-4 bg-primary/5 border-primary/20">
+        <h3 className="font-medium text-foreground mb-2">About Voice Profiles</h3>
+        <ul className="text-sm text-foreground-muted space-y-1">
+          <li>• Your voice profile is used to narrate your video memorials</li>
+          <li>• Recording takes about 2-3 minutes</li>
+          <li>• Your recordings are encrypted and never shared</li>
+        </ul>
+      </Card>
     </div>
   );
 }
