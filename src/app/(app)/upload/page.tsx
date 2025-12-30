@@ -42,6 +42,7 @@ export default function UploadPage() {
   // Instagram import state
   const [instagramFile, setInstagramFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [importResult, setImportResult] = useState<InstagramImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -168,6 +169,7 @@ export default function UploadPage() {
     if (!instagramFile || !selectedProjectId) return;
 
     setIsImporting(true);
+    setUploadProgress(0);
     setImportError(null);
     setImportResult(null);
 
@@ -175,10 +177,46 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append("file", instagramFile);
 
-      const result = await api.upload<InstagramImportResult>(
-        `/api/import/instagram/upload?project_id=${selectedProjectId}`,
-        formData
-      );
+      // Use XMLHttpRequest for upload progress tracking
+      const result = await new Promise<InstagramImportResult>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const token = localStorage.getItem("access_token");
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(progress);
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error("Invalid response from server"));
+            }
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.detail || `Upload failed: ${xhr.status}`));
+            } catch {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          reject(new Error("Network error during upload"));
+        });
+
+        xhr.open("POST", `${API_URL}/api/import/instagram/upload?project_id=${selectedProjectId}`);
+        if (token) {
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        }
+        xhr.send(formData);
+      });
 
       setImportResult(result);
       setInstagramFile(null);
@@ -187,6 +225,7 @@ export default function UploadPage() {
       setImportError(message);
     } finally {
       setIsImporting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -427,15 +466,35 @@ export default function UploadPage() {
 
           {/* Import Button */}
           {instagramFile && (
-            <Button
-              className="w-full mt-6 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-              onClick={handleInstagramImport}
-              isLoading={isImporting}
-              disabled={isImporting || !selectedProjectId}
-            >
-              {!selectedProjectId ? "Select a project first" : "Import from Instagram"}
-              <ArrowRightIcon className="w-4 h-4" />
-            </Button>
+            <div className="mt-6">
+              {isImporting && uploadProgress > 0 && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-sm text-foreground-muted mb-1">
+                    <span>Uploading...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <Button
+                className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                onClick={handleInstagramImport}
+                isLoading={isImporting}
+                disabled={isImporting || !selectedProjectId}
+              >
+                {!selectedProjectId
+                  ? "Select a project first"
+                  : isImporting
+                    ? "Processing..."
+                    : "Upload & Import"}
+                {!isImporting && <ArrowRightIcon className="w-4 h-4" />}
+              </Button>
+            </div>
           )}
 
           {/* Import Error */}
