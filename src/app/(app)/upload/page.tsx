@@ -233,8 +233,7 @@ export default function UploadPage() {
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={() => fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-radius-xl p-8 text-center cursor-pointer transition-colors ${
+        className={`relative border-2 border-dashed rounded-radius-xl p-8 text-center cursor-pointer transition-colors ${
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50"
@@ -245,17 +244,7 @@ export default function UploadPage() {
           type="file"
           multiple
           accept="image/*,video/*"
-          style={{
-            position: 'absolute',
-            width: '1px',
-            height: '1px',
-            padding: 0,
-            margin: '-1px',
-            overflow: 'hidden',
-            clip: 'rect(0, 0, 0, 0)',
-            whiteSpace: 'nowrap',
-            border: 0,
-          }}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           onChange={(e) => e.target.files && handleFiles(e.target.files)}
         />
 
@@ -402,24 +391,13 @@ export default function UploadPage() {
 
           {/* Instagram Import Zone */}
           <div
-            onClick={() => instagramInputRef.current?.click()}
-            className="border-2 border-dashed rounded-radius-xl p-8 text-center cursor-pointer transition-colors border-pink-300 hover:border-pink-400 bg-gradient-to-br from-pink-50 to-purple-50"
+            className="relative border-2 border-dashed rounded-radius-xl p-8 text-center cursor-pointer transition-colors border-pink-300 hover:border-pink-400 bg-gradient-to-br from-pink-50 to-purple-50"
           >
             <input
               ref={instagramInputRef}
               type="file"
               accept=".zip"
-              style={{
-                position: 'absolute',
-                width: '1px',
-                height: '1px',
-                padding: 0,
-                margin: '-1px',
-                overflow: 'hidden',
-                clip: 'rect(0, 0, 0, 0)',
-                whiteSpace: 'nowrap',
-                border: 0,
-              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
