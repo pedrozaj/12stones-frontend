@@ -10,18 +10,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in");
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -44,7 +44,7 @@ export default function LoginPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <fieldset disabled={isLoading} className="space-y-4">
+        <fieldset disabled={isSubmitting} className="space-y-4">
           <Input
             type="email"
             label="Email"
@@ -73,7 +73,7 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <Button type="submit" isLoading={isLoading} className="w-full">
+          <Button type="submit" isLoading={isSubmitting} className="w-full">
             Sign In
           </Button>
         </fieldset>

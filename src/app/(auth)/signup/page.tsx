@@ -11,7 +11,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,13 +22,13 @@ export default function SignupPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       await register(name, email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -51,7 +51,7 @@ export default function SignupPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <fieldset disabled={isLoading} className="space-y-4">
+        <fieldset disabled={isSubmitting} className="space-y-4">
           <Input
             type="text"
             label="Full name"
@@ -91,7 +91,7 @@ export default function SignupPage() {
             </Link>
           </p>
 
-          <Button type="submit" isLoading={isLoading} className="w-full">
+          <Button type="submit" isLoading={isSubmitting} className="w-full">
             Create Account
           </Button>
         </fieldset>
