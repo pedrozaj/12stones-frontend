@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Button, Card } from "@/components/ui";
 import { CheckIcon, ArrowRightIcon, PlayIcon } from "@/components/icons";
@@ -35,7 +36,11 @@ const RECORDING_STEPS = [
   },
 ];
 
-export default function VoiceClonePage() {
+function VoiceCloneContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get("project");
+
   const [currentStep, setCurrentStep] = useState(0);
   const [recordings, setRecordings] = useState<{ [key: number]: Blob }>({});
   const [isRecording, setIsRecording] = useState(false);
@@ -47,9 +52,14 @@ export default function VoiceClonePage() {
   const [error, setError] = useState<string | null>(null);
   const [playingProfileId, setPlayingProfileId] = useState<string | null>(null);
   const [playingSampleIndex, setPlayingSampleIndex] = useState(0);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // In project context mode
+  const isProjectFlow = !!projectId;
 
   const playProfileSample = (profile: VoiceProfile) => {
     if (!profile.sample_urls || profile.sample_urls.length === 0) return;
@@ -92,6 +102,35 @@ export default function VoiceClonePage() {
     };
 
     audio.play();
+  };
+
+  const handleContinueWithVoice = async () => {
+    if (!selectedProfileId || !projectId) return;
+
+    setIsGeneratingAudio(true);
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const token = localStorage.getItem("access_token");
+
+    try {
+      // Update project with selected voice profile
+      await fetch(`${API_URL}/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ voice_profile_id: selectedProfileId }),
+      });
+
+      // Trigger audio generation (this would be the next step in the pipeline)
+      // For now, redirect to dashboard or project review page
+      router.push(`/dashboard`);
+    } catch (err) {
+      console.error("Failed to continue with voice:", err);
+      setError("Failed to proceed. Please try again.");
+    } finally {
+      setIsGeneratingAudio(false);
+    }
   };
 
   // Fetch existing voice profiles
@@ -211,16 +250,20 @@ export default function VoiceClonePage() {
           Voice Profile Created!
         </h1>
         <p className="text-foreground-muted mb-8">
-          Your AI voice clone is ready. It will be used to narrate your video memorials.
+          {isProjectFlow
+            ? "Your AI voice clone is ready. Select it to continue with your memorial."
+            : "Your AI voice clone is ready. It will be used to narrate your video memorials."}
         </p>
         <div className="flex gap-3 justify-center">
           <Button variant="outline" onClick={() => { setIsComplete(false); setShowRecorder(false); }}>
-            View My Profiles
+            {isProjectFlow ? "Select Voice" : "View My Profiles"}
           </Button>
-          <Button onClick={() => window.location.href = "/dashboard"}>
-            Return to Dashboard
-            <ArrowRightIcon className="w-4 h-4" />
-          </Button>
+          {!isProjectFlow && (
+            <Button onClick={() => router.push("/dashboard")}>
+              Return to Dashboard
+              <ArrowRightIcon className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -374,22 +417,36 @@ export default function VoiceClonePage() {
   }
 
   // Show voice profiles list
+  const readyProfiles = voiceProfiles.filter((p) => p.status === "ready");
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">
-            My Voice Profiles
-          </h1>
-          <p className="text-foreground-muted">
-            Your AI voice clones for narrating memorials.
-          </p>
+      <div className="mb-8">
+        {isProjectFlow && (
+          <button
+            onClick={() => router.push(`/project/${projectId}`)}
+            className="text-sm text-foreground-muted hover:text-foreground mb-4 flex items-center gap-1"
+          >
+            ← Back to project
+          </button>
+        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">
+              {isProjectFlow ? "Select a Voice" : "My Voice Profiles"}
+            </h1>
+            <p className="text-foreground-muted">
+              {isProjectFlow
+                ? "Choose a voice to narrate your memorial, or create a new one."
+                : "Your AI voice clones for narrating memorials."}
+            </p>
+          </div>
+          <Button onClick={() => setShowRecorder(true)}>
+            <MicIcon className="w-4 h-4" />
+            New Profile
+          </Button>
         </div>
-        <Button onClick={() => setShowRecorder(true)}>
-          <MicIcon className="w-4 h-4" />
-          New Profile
-        </Button>
       </div>
 
       {/* Voice Profiles List */}
@@ -423,61 +480,137 @@ export default function VoiceClonePage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {voiceProfiles.map((profile) => (
-            <Card key={profile.id} className="p-4">
-              <div className="flex items-center gap-4">
-                {/* Play button or status icon */}
-                {profile.status === "ready" && profile.sample_urls?.length > 0 ? (
-                  <button
-                    onClick={() => playProfileSample(profile)}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                      playingProfileId === profile.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-primary/10 hover:bg-primary/20 text-primary"
-                    }`}
-                  >
-                    {playingProfileId === profile.id ? (
-                      <StopIcon className="w-5 h-5" />
-                    ) : (
-                      <PlayIcon className="w-5 h-5 ml-0.5" />
-                    )}
-                  </button>
-                ) : (
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    profile.status === "ready"
-                      ? "bg-green-500/10"
-                      : profile.status === "processing"
-                      ? "bg-yellow-500/10"
-                      : "bg-red-500/10"
-                  }`}>
-                    {profile.status === "ready" ? (
-                      <CheckIcon className="w-6 h-6 text-green-500" />
-                    ) : profile.status === "processing" ? (
-                      <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <span className="text-red-500">!</span>
-                    )}
+          {voiceProfiles.map((profile) => {
+            const isSelected = selectedProfileId === profile.id;
+            const isSelectable = isProjectFlow && profile.status === "ready";
+
+            return (
+              <Card
+                key={profile.id}
+                className={`p-4 transition-all ${
+                  isSelectable ? "cursor-pointer hover:border-primary" : ""
+                } ${isSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
+                onClick={() => {
+                  if (isSelectable) {
+                    setSelectedProfileId(isSelected ? null : profile.id);
+                  }
+                }}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Selection indicator or play button */}
+                  {isProjectFlow && profile.status === "ready" ? (
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-primary/10 text-primary"
+                      }`}
+                    >
+                      {isSelected ? (
+                        <CheckIcon className="w-6 h-6" />
+                      ) : (
+                        <MicIcon className="w-5 h-5" />
+                      )}
+                    </div>
+                  ) : profile.status === "ready" && profile.sample_urls?.length > 0 ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playProfileSample(profile);
+                      }}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                        playingProfileId === profile.id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-primary/10 hover:bg-primary/20 text-primary"
+                      }`}
+                    >
+                      {playingProfileId === profile.id ? (
+                        <StopIcon className="w-5 h-5" />
+                      ) : (
+                        <PlayIcon className="w-5 h-5 ml-0.5" />
+                      )}
+                    </button>
+                  ) : (
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                      profile.status === "ready"
+                        ? "bg-green-500/10"
+                        : profile.status === "processing"
+                        ? "bg-yellow-500/10"
+                        : "bg-red-500/10"
+                    }`}>
+                      {profile.status === "ready" ? (
+                        <CheckIcon className="w-6 h-6 text-green-500" />
+                      ) : profile.status === "processing" ? (
+                        <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <span className="text-red-500">!</span>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="font-medium text-foreground">{profile.name}</h3>
+                    <p className="text-sm text-foreground-muted">
+                      {playingProfileId === profile.id
+                        ? `Playing sample ${playingSampleIndex + 1} of ${profile.sample_urls?.length || 0}...`
+                        : profile.status === "ready"
+                        ? "Ready to use"
+                        : profile.status === "processing"
+                        ? "Processing..."
+                        : "Failed to create"}
+                      {profile.sample_duration && playingProfileId !== profile.id && ` • ${profile.sample_duration}s of audio`}
+                    </p>
                   </div>
-                )}
-                <div className="flex-1">
-                  <h3 className="font-medium text-foreground">{profile.name}</h3>
-                  <p className="text-sm text-foreground-muted">
-                    {playingProfileId === profile.id
-                      ? `Playing sample ${playingSampleIndex + 1} of ${profile.sample_urls?.length || 0}...`
-                      : profile.status === "ready"
-                      ? "Ready to use"
-                      : profile.status === "processing"
-                      ? "Processing..."
-                      : "Failed to create"}
-                    {profile.sample_duration && playingProfileId !== profile.id && ` • ${profile.sample_duration}s of audio`}
-                  </p>
+                  {isProjectFlow && profile.status === "ready" && profile.sample_urls?.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playProfileSample(profile);
+                      }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                        playingProfileId === profile.id
+                          ? "bg-primary/20 text-primary"
+                          : "bg-input hover:bg-border text-foreground-muted"
+                      }`}
+                    >
+                      {playingProfileId === profile.id ? (
+                        <StopIcon className="w-4 h-4" />
+                      ) : (
+                        <PlayIcon className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                  {!isProjectFlow && (
+                    <p className="text-xs text-foreground-muted">
+                      {format(new Date(profile.created_at), "MMM d, yyyy")}
+                    </p>
+                  )}
                 </div>
-                <p className="text-xs text-foreground-muted">
-                  {format(new Date(profile.created_at), "MMM d, yyyy")}
-                </p>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Continue button for project flow */}
+      {isProjectFlow && readyProfiles.length > 0 && (
+        <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 mt-6">
+          <Button
+            className="w-full"
+            disabled={!selectedProfileId || isGeneratingAudio}
+            isLoading={isGeneratingAudio}
+            onClick={handleContinueWithVoice}
+          >
+            {isGeneratingAudio ? (
+              "Generating Audio..."
+            ) : selectedProfileId ? (
+              <>
+                Continue with Selected Voice
+                <ArrowRightIcon className="w-4 h-4" />
+              </>
+            ) : (
+              "Select a voice to continue"
+            )}
+          </Button>
         </div>
       )}
 
@@ -510,5 +643,13 @@ function StopIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
       <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
+  );
+}
+
+export default function VoiceClonePage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 py-6">Loading...</div>}>
+      <VoiceCloneContent />
+    </Suspense>
   );
 }
