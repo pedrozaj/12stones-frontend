@@ -19,10 +19,10 @@ interface ContentItem {
 
 interface Narrative {
   id: string;
-  script_text: string;
+  script: string;
   status: string;
   word_count: number | null;
-  estimated_duration_seconds: number | null;
+  estimated_duration: number | null;
 }
 
 interface VoiceProfile {
@@ -289,14 +289,14 @@ export default function ProjectPage({
             <h2 className="font-semibold text-foreground">Your Narrative</h2>
             <div className="flex items-center gap-2 text-sm text-foreground-muted">
               {narrative.word_count && <span>{narrative.word_count} words</span>}
-              {narrative.estimated_duration_seconds && (
-                <span>• ~{Math.ceil(narrative.estimated_duration_seconds / 60)} min</span>
+              {narrative.estimated_duration && (
+                <span>• ~{Math.ceil(narrative.estimated_duration / 60)} min</span>
               )}
             </div>
           </div>
           <div className="prose prose-sm max-w-none">
             <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-              {narrative.script_text}
+              {narrative.script}
             </p>
           </div>
         </Card>
