@@ -1,13 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { Button, Input, Card } from "@/components/ui";
-import { ArrowRightIcon } from "@/components/icons";
+import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+
+interface VoiceProfile {
+  id: string;
+  name: string;
+  status: "processing" | "ready" | "failed";
+}
 
 export default function ProfilePage() {
   const { user, logout, isLoading } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null);
+  const [isLoadingVoice, setIsLoadingVoice] = useState(true);
+
+  // Fetch voice profile
+  useEffect(() => {
+    const fetchVoiceProfile = async () => {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const token = localStorage.getItem("access_token");
+
+      try {
+        const response = await fetch(`${API_URL}/api/voice/profiles`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const profiles = await response.json();
+          // Get the first ready profile, or the most recent one
+          const readyProfile = profiles.find((p: VoiceProfile) => p.status === "ready");
+          setVoiceProfile(readyProfile || profiles[0] || null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch voice profile:", err);
+      } finally {
+        setIsLoadingVoice(false);
+      }
+    };
+
+    fetchVoiceProfile();
+  }, []);
 
   if (isLoading) {
     return (
@@ -110,21 +146,39 @@ export default function ProfilePage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">
           Voice Profile
         </h2>
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎙️</span>
-              <div>
-                <p className="font-medium text-foreground">AI Voice Clone</p>
-                <p className="text-sm text-foreground-muted">Not configured</p>
+        <Link href="/voice">
+          <Card className="p-4 hover:bg-input/50 transition-colors cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {isLoadingVoice ? (
+                  <div className="w-10 h-10 rounded-full bg-input animate-pulse" />
+                ) : voiceProfile?.status === "ready" ? (
+                  <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <CheckIcon className="w-5 h-5 text-green-500" />
+                  </div>
+                ) : (
+                  <span className="text-2xl">🎙️</span>
+                )}
+                <div>
+                  <p className="font-medium text-foreground">AI Voice Clone</p>
+                  <p className="text-sm text-foreground-muted">
+                    {isLoadingVoice
+                      ? "Loading..."
+                      : voiceProfile?.status === "ready"
+                      ? voiceProfile.name
+                      : voiceProfile?.status === "processing"
+                      ? "Processing..."
+                      : "Not configured"}
+                  </p>
+                </div>
               </div>
+              <span className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-radius-lg bg-input text-foreground hover:bg-input/80">
+                {voiceProfile ? "Manage" : "Set Up"}
+                <ArrowRightIcon className="w-4 h-4" />
+              </span>
             </div>
-            <Button variant="secondary" size="sm">
-              Set Up
-              <ArrowRightIcon className="w-4 h-4" />
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        </Link>
       </section>
 
       {/* Danger Zone */}
