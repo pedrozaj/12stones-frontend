@@ -5,15 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PlayIcon, GridIcon, PlusIcon } from "@/components/icons";
 
-// Mock data - would come from API
-const MOCK_MEMORIALS = [
-  { id: "1", title: "2024 - A Different Dream", year: "2024", type: "milestone", count: 12, coverUrl: null },
-  { id: "2", title: "2023 - New Beginnings", year: "2023", type: "milestone", count: 8, coverUrl: null },
-  { id: "3", title: "Christmas 2024", year: null, type: "family", count: 24, coverUrl: null },
-  { id: "4", title: "Summer Vacation", year: null, type: "family", count: 45, coverUrl: null },
-  { id: "5", title: "Wedding Day", year: "2020", type: "milestone", count: 56, coverUrl: null },
-  { id: "6", title: "Baby's First Year", year: null, type: "family", count: 120, coverUrl: null },
-];
+// Empty array - data would come from API
+const MOCK_MEMORIALS: { id: string; title: string; year: string | null; type: string; count: number; coverUrl: string | null }[] = [];
 
 function MemorialsContent() {
   const searchParams = useSearchParams();

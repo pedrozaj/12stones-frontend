@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { Button, Card } from "@/components/ui";
-import { CheckIcon, ArrowRightIcon } from "@/components/icons";
+import { CheckIcon, ArrowRightIcon, PlayIcon } from "@/components/icons";
 
 interface VoiceProfile {
   id: string;
   name: string;
   status: "processing" | "ready" | "failed";
   sample_duration: number | null;
+  sample_urls: string[];
   created_at: string;
 }
 
@@ -44,8 +45,54 @@ export default function VoiceClonePage() {
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
   const [showRecorder, setShowRecorder] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playingProfileId, setPlayingProfileId] = useState<string | null>(null);
+  const [playingSampleIndex, setPlayingSampleIndex] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playProfileSample = (profile: VoiceProfile) => {
+    if (!profile.sample_urls || profile.sample_urls.length === 0) return;
+
+    // If already playing this profile, stop it
+    if (playingProfileId === profile.id) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setPlayingProfileId(null);
+      return;
+    }
+
+    // Stop any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    // Play the first sample
+    const audio = new Audio(profile.sample_urls[0]);
+    audioRef.current = audio;
+    setPlayingProfileId(profile.id);
+    setPlayingSampleIndex(0);
+
+    audio.onended = () => {
+      // Play next sample if available
+      const nextIndex = playingSampleIndex + 1;
+      if (nextIndex < profile.sample_urls.length) {
+        setPlayingSampleIndex(nextIndex);
+        const nextAudio = new Audio(profile.sample_urls[nextIndex]);
+        audioRef.current = nextAudio;
+        nextAudio.onended = audio.onended;
+        nextAudio.play();
+      } else {
+        setPlayingProfileId(null);
+        setPlayingSampleIndex(0);
+        audioRef.current = null;
+      }
+    };
+
+    audio.play();
+  };
 
   // Fetch existing voice profiles
   useEffect(() => {
@@ -379,30 +426,50 @@ export default function VoiceClonePage() {
           {voiceProfiles.map((profile) => (
             <Card key={profile.id} className="p-4">
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  profile.status === "ready"
-                    ? "bg-green-500/10"
-                    : profile.status === "processing"
-                    ? "bg-yellow-500/10"
-                    : "bg-red-500/10"
-                }`}>
-                  {profile.status === "ready" ? (
-                    <CheckIcon className="w-6 h-6 text-green-500" />
-                  ) : profile.status === "processing" ? (
-                    <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <span className="text-red-500">!</span>
-                  )}
-                </div>
+                {/* Play button or status icon */}
+                {profile.status === "ready" && profile.sample_urls?.length > 0 ? (
+                  <button
+                    onClick={() => playProfileSample(profile)}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                      playingProfileId === profile.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-primary/10 hover:bg-primary/20 text-primary"
+                    }`}
+                  >
+                    {playingProfileId === profile.id ? (
+                      <StopIcon className="w-5 h-5" />
+                    ) : (
+                      <PlayIcon className="w-5 h-5 ml-0.5" />
+                    )}
+                  </button>
+                ) : (
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                    profile.status === "ready"
+                      ? "bg-green-500/10"
+                      : profile.status === "processing"
+                      ? "bg-yellow-500/10"
+                      : "bg-red-500/10"
+                  }`}>
+                    {profile.status === "ready" ? (
+                      <CheckIcon className="w-6 h-6 text-green-500" />
+                    ) : profile.status === "processing" ? (
+                      <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <span className="text-red-500">!</span>
+                    )}
+                  </div>
+                )}
                 <div className="flex-1">
                   <h3 className="font-medium text-foreground">{profile.name}</h3>
                   <p className="text-sm text-foreground-muted">
-                    {profile.status === "ready"
+                    {playingProfileId === profile.id
+                      ? `Playing sample ${playingSampleIndex + 1} of ${profile.sample_urls?.length || 0}...`
+                      : profile.status === "ready"
                       ? "Ready to use"
                       : profile.status === "processing"
                       ? "Processing..."
                       : "Failed to create"}
-                    {profile.sample_duration && ` • ${profile.sample_duration}s of audio`}
+                    {profile.sample_duration && playingProfileId !== profile.id && ` • ${profile.sample_duration}s of audio`}
                   </p>
                 </div>
                 <p className="text-xs text-foreground-muted">
@@ -434,6 +501,14 @@ function MicIcon({ className }: { className?: string }) {
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
       <line x1="12" y1="19" x2="12" y2="23" />
       <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  );
+}
+
+function StopIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   );
 }
