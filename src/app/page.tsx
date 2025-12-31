@@ -7,8 +7,14 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="w-full px-6 py-4">
+      <header className="w-full px-6 py-4 flex items-center justify-between">
         <Logo size="sm" />
+        <Link
+          href="/login"
+          className="text-sm font-medium text-foreground-muted hover:text-foreground transition-colors"
+        >
+          Sign in
+        </Link>
       </header>
 
       {/* Hero Section */}
