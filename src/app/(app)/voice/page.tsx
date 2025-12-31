@@ -108,12 +108,13 @@ function VoiceCloneContent() {
     if (!selectedProfileId || !projectId) return;
 
     setIsGeneratingAudio(true);
+    setError(null);
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const token = localStorage.getItem("access_token");
 
     try {
       // Update project with selected voice profile
-      await fetch(`${API_URL}/api/projects/${projectId}`, {
+      const response = await fetch(`${API_URL}/api/projects/${projectId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -122,12 +123,16 @@ function VoiceCloneContent() {
         body: JSON.stringify({ voice_profile_id: selectedProfileId }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to save voice selection");
+      }
+
       // Redirect back to project review page
       router.push(`/project/${projectId}`);
     } catch (err) {
       console.error("Failed to continue with voice:", err);
-      setError("Failed to proceed. Please try again.");
-    } finally {
+      setError(err instanceof Error ? err.message : "Failed to proceed. Please try again.");
       setIsGeneratingAudio(false);
     }
   };
