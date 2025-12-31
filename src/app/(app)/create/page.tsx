@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input, Card } from "@/components/ui";
 import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+import { authApi } from "@/lib/api";
 
 const MEMORIAL_TYPES = [
   {
@@ -49,13 +50,43 @@ function CreateMemorialContent() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
+    const token = authApi.getToken();
+    if (!token || !selectedType || !title.trim()) return;
+
     setIsCreating(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    // In real app, would create memorial and redirect to it
-    router.push("/dashboard");
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/projects`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || undefined,
+            type: selectedType,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || "Failed to create memorial");
+      }
+
+      const project = await response.json();
+      router.push(`/project/${project.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create memorial");
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -244,6 +275,12 @@ function CreateMemorialContent() {
               </div>
             </Card>
           </div>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {error}
+            </div>
+          )}
 
           <div className="flex gap-3 mt-8">
             <Button variant="outline" onClick={() => setStep(2)}>
