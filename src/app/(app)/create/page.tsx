@@ -60,6 +60,11 @@ function CreateMemorialContent() {
     setError(null);
 
     try {
+      // Default to current year for timeframe
+      const now = new Date();
+      const yearStart = `${now.getFullYear()}-01-01`;
+      const yearEnd = `${now.getFullYear()}-12-31`;
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/projects`,
         {
@@ -70,14 +75,19 @@ function CreateMemorialContent() {
           },
           body: JSON.stringify({
             title: title.trim(),
-            description: description.trim() || undefined,
-            type: selectedType,
+            timeframe_start: yearStart,
+            timeframe_end: yearEnd,
           }),
         }
       );
 
       if (!response.ok) {
         const data = await response.json();
+        // Handle FastAPI validation errors
+        if (Array.isArray(data.detail)) {
+          const messages = data.detail.map((err: { msg: string }) => err.msg);
+          throw new Error(messages.join(", "));
+        }
         throw new Error(data.detail || "Failed to create memorial");
       }
 
