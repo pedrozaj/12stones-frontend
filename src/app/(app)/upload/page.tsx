@@ -622,9 +622,9 @@ export default function UploadPage() {
                   </ul>
                 </div>
               )}
-              <Link href={`/project/${selectedProjectId}`} className="block mt-4">
+              <Link href={`/project/${selectedProjectId}?selectContent=true`} className="block mt-4">
                 <Button className="w-full">
-                  Review & Continue
+                  Select Photos & Continue
                   <ArrowRightIcon className="w-4 h-4" />
                 </Button>
               </Link>

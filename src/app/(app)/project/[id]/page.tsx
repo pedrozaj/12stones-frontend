@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card } from "@/components/ui";
 import { ArrowRightIcon, CheckIcon, XIcon, PlayIcon } from "@/components/icons";
 import { api } from "@/lib/api";
@@ -56,6 +56,8 @@ export default function ProjectPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const forceContentView = searchParams.get("selectContent") === "true";
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState<ContentItem[]>([]);
   const [narrative, setNarrative] = useState<Narrative | null>(null);
@@ -90,12 +92,15 @@ export default function ProjectPage({
         }
 
         // If project has a narrative, fetch it and show review view
+        // (unless user explicitly wants to select content via ?selectContent=true)
         if (projectData.current_narrative_id) {
           try {
             const narratives = await api.get<Narrative[]>(`/api/projects/${id}/narratives`);
             if (narratives.length > 0) {
               setNarrative(narratives[0]);
-              setView("review");
+              if (!forceContentView) {
+                setView("review");
+              }
             }
           } catch (err) {
             console.error("Failed to fetch narrative:", err);
@@ -121,7 +126,7 @@ export default function ProjectPage({
     };
 
     fetchData();
-  }, [id, hasFetchedOnce]);
+  }, [id, hasFetchedOnce, forceContentView]);
 
   const toggleSelection = (itemId: string) => {
     setSelectedIds((prev) => {
