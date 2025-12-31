@@ -31,6 +31,14 @@ interface VoiceProfile {
   status: string;
 }
 
+interface VideoRender {
+  id: string;
+  status: "queued" | "rendering" | "completed" | "failed";
+  render_progress: number;
+  download_url: string | null;
+  error_message: string | null;
+}
+
 interface Project {
   id: string;
   title: string;
@@ -56,12 +64,19 @@ export default function ProjectPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
+  const [videoRender, setVideoRender] = useState<VideoRender | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [view, setView] = useState<"content" | "review">("content");
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
+      // Only show loading skeleton on first load, not on refreshes
+      if (!hasFetchedOnce) {
+        setIsLoading(true);
+      }
+
       try {
         const [projectData, contentData] = await Promise.all([
           api.get<Project>(`/api/projects/${id}`),
@@ -69,8 +84,10 @@ export default function ProjectPage({
         ]);
         setProject(projectData);
         setContent(contentData);
-        // Pre-select all items
-        setSelectedIds(new Set(contentData.map((item) => item.id)));
+        // Pre-select all items (only on first load)
+        if (!hasFetchedOnce) {
+          setSelectedIds(new Set(contentData.map((item) => item.id)));
+        }
 
         // If project has a narrative, fetch it and show review view
         if (projectData.current_narrative_id) {
@@ -99,11 +116,12 @@ export default function ProjectPage({
         console.error(err);
       } finally {
         setIsLoading(false);
+        setHasFetchedOnce(true);
       }
     };
 
     fetchData();
-  }, [id]);
+  }, [id, hasFetchedOnce]);
 
   const toggleSelection = (itemId: string) => {
     setSelectedIds((prev) => {
@@ -160,15 +178,43 @@ export default function ProjectPage({
 
     setIsRendering(true);
     try {
-      await api.post(`/api/projects/${id}/videos/render`);
-      // Redirect to dashboard to see progress
-      router.push("/dashboard");
+      const video = await api.post<VideoRender>(`/api/projects/${id}/videos/render`, {
+        narrative_id: narrative.id,
+        voice_profile_id: voiceProfile.id,
+        resolution: "1080p",
+      });
+      setVideoRender(video);
+      // Start polling for status
+      pollVideoStatus(video.id);
     } catch (err) {
       console.error("Failed to start video render:", err);
       alert("Failed to start video render. Please try again.");
-    } finally {
       setIsRendering(false);
     }
+  };
+
+  const pollVideoStatus = async (videoId: string) => {
+    const poll = async () => {
+      try {
+        const video = await api.get<VideoRender>(`/api/projects/${id}/videos/${videoId}`);
+        setVideoRender(video);
+
+        if (video.status === "completed") {
+          setIsRendering(false);
+          // Video is ready!
+        } else if (video.status === "failed") {
+          setIsRendering(false);
+          alert(`Video rendering failed: ${video.error_message || "Unknown error"}`);
+        } else {
+          // Still rendering, poll again in 3 seconds
+          setTimeout(poll, 3000);
+        }
+      } catch (err) {
+        console.error("Failed to poll video status:", err);
+        setIsRendering(false);
+      }
+    };
+    poll();
   };
 
   const handleRegenerateNarrative = async () => {
@@ -319,28 +365,91 @@ export default function ProjectPage({
           </Button>
         </div>
 
-        {/* Generate Video Button */}
+        {/* Video Render Progress or Generate Button */}
         <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
-          <Button
-            className="w-full"
-            onClick={handleRenderVideo}
-            disabled={!voiceProfile || isRendering}
-            isLoading={isRendering}
-          >
-            {isRendering ? (
-              "Starting Video Render..."
-            ) : !voiceProfile ? (
-              "Select a voice to continue"
-            ) : (
-              <>
-                Generate Video
-                <PlayIcon className="w-4 h-4" />
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-center text-foreground-muted mt-2">
-            Video rendering typically takes 5-10 minutes
-          </p>
+          {videoRender?.status === "completed" && videoRender.download_url ? (
+            // Video completed - show download/preview
+            <div className="space-y-3">
+              <Card className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <CheckIcon className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Video Ready!</p>
+                    <p className="text-sm text-foreground-muted">
+                      Your memorial video has been created
+                    </p>
+                  </div>
+                </div>
+                <video
+                  src={videoRender.download_url}
+                  controls
+                  className="w-full rounded-lg"
+                  poster="/video-poster.jpg"
+                />
+              </Card>
+              <a
+                href={videoRender.download_url}
+                download
+                className="block"
+              >
+                <Button className="w-full">
+                  Download Video
+                </Button>
+              </a>
+            </div>
+          ) : isRendering && videoRender ? (
+            // Rendering in progress - show progress
+            <Card className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <LoaderIcon className="w-5 h-5 text-primary animate-spin" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">
+                    {getProgressStage(videoRender.render_progress)}
+                  </p>
+                  <p className="text-sm text-foreground-muted">
+                    {videoRender.render_progress}% complete
+                  </p>
+                </div>
+              </div>
+              <div className="w-full bg-input rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${videoRender.render_progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-center text-foreground-muted mt-3">
+                Please keep this page open while your video renders
+              </p>
+            </Card>
+          ) : (
+            // Ready to generate
+            <>
+              <Button
+                className="w-full"
+                onClick={handleRenderVideo}
+                disabled={!voiceProfile || isRendering}
+                isLoading={isRendering}
+              >
+                {isRendering ? (
+                  "Starting Video Render..."
+                ) : !voiceProfile ? (
+                  "Select a voice to continue"
+                ) : (
+                  <>
+                    Generate Video
+                    <PlayIcon className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-center text-foreground-muted mt-2">
+                Video rendering typically takes 5-10 minutes
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -611,4 +720,21 @@ function MicIcon({ className }: { className?: string }) {
       <line x1="8" y1="23" x2="16" y2="23" />
     </svg>
   );
+}
+
+function LoaderIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+    </svg>
+  );
+}
+
+function getProgressStage(progress: number): string {
+  if (progress < 5) return "Preparing...";
+  if (progress < 30) return "Generating narration audio...";
+  if (progress < 40) return "Downloading your photos...";
+  if (progress < 85) return "Creating video...";
+  if (progress < 100) return "Uploading video...";
+  return "Complete!";
 }
