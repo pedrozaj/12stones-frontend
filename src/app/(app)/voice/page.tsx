@@ -122,9 +122,8 @@ function VoiceCloneContent() {
         body: JSON.stringify({ voice_profile_id: selectedProfileId }),
       });
 
-      // Trigger audio generation (this would be the next step in the pipeline)
-      // For now, redirect to dashboard or project review page
-      router.push(`/dashboard`);
+      // Redirect back to project review page
+      router.push(`/project/${projectId}`);
     } catch (err) {
       console.error("Failed to continue with voice:", err);
       setError("Failed to proceed. Please try again.");

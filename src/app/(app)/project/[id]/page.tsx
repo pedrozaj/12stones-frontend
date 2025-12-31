@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card } from "@/components/ui";
-import { ArrowRightIcon, CheckIcon, XIcon } from "@/components/icons";
+import { ArrowRightIcon, CheckIcon, XIcon, PlayIcon } from "@/components/icons";
 import { api } from "@/lib/api";
 
 interface ContentItem {
@@ -18,12 +17,28 @@ interface ContentItem {
   included_in_narrative: boolean;
 }
 
+interface Narrative {
+  id: string;
+  script_text: string;
+  status: string;
+  word_count: number | null;
+  estimated_duration_seconds: number | null;
+}
+
+interface VoiceProfile {
+  id: string;
+  name: string;
+  status: string;
+}
+
 interface Project {
   id: string;
   title: string;
   status: string;
   timeframe_start: string;
   timeframe_end: string;
+  voice_profile_id: string | null;
+  current_narrative_id: string | null;
 }
 
 export default function ProjectPage({
@@ -35,11 +50,15 @@ export default function ProjectPage({
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState<ContentItem[]>([]);
+  const [narrative, setNarrative] = useState<Narrative | null>(null);
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRendering, setIsRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
+  const [view, setView] = useState<"content" | "review">("content");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,6 +71,29 @@ export default function ProjectPage({
         setContent(contentData);
         // Pre-select all items
         setSelectedIds(new Set(contentData.map((item) => item.id)));
+
+        // If project has a narrative, fetch it and show review view
+        if (projectData.current_narrative_id) {
+          try {
+            const narratives = await api.get<Narrative[]>(`/api/projects/${id}/narratives`);
+            if (narratives.length > 0) {
+              setNarrative(narratives[0]);
+              setView("review");
+            }
+          } catch (err) {
+            console.error("Failed to fetch narrative:", err);
+          }
+        }
+
+        // If project has a voice profile, fetch it
+        if (projectData.voice_profile_id) {
+          try {
+            const profile = await api.get<VoiceProfile>(`/api/voice/profiles/${projectData.voice_profile_id}`);
+            setVoiceProfile(profile);
+          } catch (err) {
+            console.error("Failed to fetch voice profile:", err);
+          }
+        }
       } catch (err) {
         setError("Failed to load project");
         console.error(err);
@@ -103,11 +145,44 @@ export default function ProjectPage({
       // Trigger narrative generation
       await api.post(`/api/projects/${id}/narratives/regenerate`);
 
-      // Redirect to voice setup or narrative review
+      // Redirect to voice setup
       router.push(`/voice?project=${id}`);
     } catch (err) {
       console.error("Failed to generate narrative:", err);
       alert("Failed to generate narrative. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRenderVideo = async () => {
+    if (!narrative || !voiceProfile) return;
+
+    setIsRendering(true);
+    try {
+      await api.post(`/api/projects/${id}/videos/render`);
+      // Redirect to dashboard to see progress
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Failed to start video render:", err);
+      alert("Failed to start video render. Please try again.");
+    } finally {
+      setIsRendering(false);
+    }
+  };
+
+  const handleRegenerateNarrative = async () => {
+    setIsGenerating(true);
+    try {
+      await api.post(`/api/projects/${id}/narratives/regenerate`);
+      // Refresh narrative
+      const narratives = await api.get<Narrative[]>(`/api/projects/${id}/narratives`);
+      if (narratives.length > 0) {
+        setNarrative(narratives[0]);
+      }
+    } catch (err) {
+      console.error("Failed to regenerate narrative:", err);
+      alert("Failed to regenerate narrative. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -143,6 +218,135 @@ export default function ProjectPage({
   const photos = content.filter((item) => item.type === "photo");
   const videos = content.filter((item) => item.type === "video");
 
+  // Show narrative review view
+  if (view === "review" && narrative) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="mb-6">
+          <Link
+            href="/dashboard"
+            className="text-sm text-foreground-muted hover:text-foreground mb-2 inline-flex items-center gap-1"
+          >
+            ← Back to Dashboard
+          </Link>
+          <h1 className="text-2xl font-bold text-foreground">{project.title}</h1>
+          <p className="text-foreground-muted mt-1">
+            Review your narrative before generating the video
+          </p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex items-center gap-2 mb-8">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+              <CheckIcon className="w-4 h-4" />
+            </div>
+            <span className="text-sm text-foreground">Content</span>
+          </div>
+          <div className="flex-1 h-0.5 bg-primary" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+              <CheckIcon className="w-4 h-4" />
+            </div>
+            <span className="text-sm text-foreground">Voice</span>
+          </div>
+          <div className="flex-1 h-0.5 bg-primary" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+              3
+            </div>
+            <span className="text-sm font-medium text-foreground">Review</span>
+          </div>
+        </div>
+
+        {/* Voice Profile Card */}
+        <Card className="p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <MicIcon className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-foreground-muted">Narration Voice</p>
+                <p className="font-medium text-foreground">
+                  {voiceProfile?.name || "No voice selected"}
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/voice?project=${id}`}
+              className="text-sm text-primary hover:text-primary/80"
+            >
+              Change
+            </Link>
+          </div>
+        </Card>
+
+        {/* Narrative Preview */}
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-foreground">Your Narrative</h2>
+            <div className="flex items-center gap-2 text-sm text-foreground-muted">
+              {narrative.word_count && <span>{narrative.word_count} words</span>}
+              {narrative.estimated_duration_seconds && (
+                <span>• ~{Math.ceil(narrative.estimated_duration_seconds / 60)} min</span>
+              )}
+            </div>
+          </div>
+          <div className="prose prose-sm max-w-none">
+            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+              {narrative.script_text}
+            </p>
+          </div>
+        </Card>
+
+        {/* Actions */}
+        <div className="flex gap-3 mb-6">
+          <Button
+            variant="outline"
+            onClick={() => setView("content")}
+          >
+            Edit Content
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleRegenerateNarrative}
+            disabled={isGenerating}
+            isLoading={isGenerating}
+          >
+            Regenerate Narrative
+          </Button>
+        </div>
+
+        {/* Generate Video Button */}
+        <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
+          <Button
+            className="w-full"
+            onClick={handleRenderVideo}
+            disabled={!voiceProfile || isRendering}
+            isLoading={isRendering}
+          >
+            {isRendering ? (
+              "Starting Video Render..."
+            ) : !voiceProfile ? (
+              "Select a voice to continue"
+            ) : (
+              <>
+                Generate Video
+                <PlayIcon className="w-4 h-4" />
+              </>
+            )}
+          </Button>
+          <p className="text-xs text-center text-foreground-muted mt-2">
+            Video rendering typically takes 5-10 minutes
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Content selection view (default)
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       {/* Header */}
@@ -395,5 +599,16 @@ function ContentCard({
         {item.type === "video" ? "Video" : "Photo"}
       </div>
     </button>
+  );
+}
+
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
   );
 }
