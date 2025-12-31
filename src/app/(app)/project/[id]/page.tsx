@@ -116,6 +116,23 @@ export default function ProjectPage({
             console.error("Failed to fetch voice profile:", err);
           }
         }
+
+        // Fetch any existing video renders to show completed videos
+        try {
+          const videos = await api.get<VideoRender[]>(`/api/projects/${id}/videos`);
+          if (videos.length > 0) {
+            // Get the most recent video
+            const latestVideo = videos[0];
+            setVideoRender(latestVideo);
+            // If video is still rendering, resume polling
+            if (latestVideo.status === "queued" || latestVideo.status === "rendering") {
+              setIsRendering(true);
+              pollVideoStatus(latestVideo.id);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch videos:", err);
+        }
       } catch (err) {
         setError("Failed to load project");
         console.error(err);
