@@ -51,48 +51,50 @@ export default function SignupPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          type="text"
-          label="Full name"
-          placeholder="Your name"
-          autoComplete="name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Input
-          type="email"
-          label="Email"
-          placeholder="you@example.com"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Input
-          type="password"
-          label="Password"
-          placeholder="Create a password (min 8 chars)"
-          autoComplete="new-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <fieldset disabled={isLoading} className="space-y-4">
+          <Input
+            type="text"
+            label="Full name"
+            placeholder="Your name"
+            autoComplete="name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Input
+            type="email"
+            label="Email"
+            placeholder="you@example.com"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Input
+            type="password"
+            label="Password"
+            placeholder="Create a password (min 8 chars)"
+            autoComplete="new-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        <p className="text-xs text-foreground-muted">
-          By signing up, you agree to our{" "}
-          <Link href="/terms" className="text-accent hover:underline">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="text-accent hover:underline">
-            Privacy Policy
-          </Link>
-        </p>
+          <p className="text-xs text-foreground-muted">
+            By signing up, you agree to our{" "}
+            <Link href="/terms" className="text-accent hover:underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-accent hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
 
-        <Button type="submit" isLoading={isLoading} className="w-full">
-          Create Account
-        </Button>
+          <Button type="submit" isLoading={isLoading} className="w-full">
+            Create Account
+          </Button>
+        </fieldset>
       </form>
 
       {/* Login link */}

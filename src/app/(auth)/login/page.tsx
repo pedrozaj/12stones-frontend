@@ -44,37 +44,39 @@ export default function LoginPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          type="email"
-          label="Email"
-          placeholder="you@example.com"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Input
-          type="password"
-          label="Password"
-          placeholder="••••••••"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <fieldset disabled={isLoading} className="space-y-4">
+          <Input
+            type="email"
+            label="Email"
+            placeholder="you@example.com"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Input
+            type="password"
+            label="Password"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        <div className="flex justify-end">
-          <Link
-            href="/forgot-password"
-            className="text-sm text-accent hover:text-accent-hover transition-colors"
-          >
-            Forgot password?
-          </Link>
-        </div>
+          <div className="flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-accent hover:text-accent-hover transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
 
-        <Button type="submit" isLoading={isLoading} className="w-full">
-          Sign In
-        </Button>
+          <Button type="submit" isLoading={isLoading} className="w-full">
+            Sign In
+          </Button>
+        </fieldset>
       </form>
 
       {/* Sign up link */}
