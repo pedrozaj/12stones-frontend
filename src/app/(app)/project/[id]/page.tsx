@@ -73,11 +73,11 @@ export default function ProjectPage({
   const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
 
   useEffect(() => {
+    // Only fetch data once on mount
+    if (hasFetchedOnce) return;
+
     const fetchData = async () => {
-      // Only show loading skeleton on first load, not on refreshes
-      if (!hasFetchedOnce) {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
 
       try {
         const [projectData, contentData] = await Promise.all([
@@ -86,10 +86,8 @@ export default function ProjectPage({
         ]);
         setProject(projectData);
         setContent(contentData);
-        // Pre-select all items (only on first load)
-        if (!hasFetchedOnce) {
-          setSelectedIds(new Set(contentData.map((item) => item.id)));
-        }
+        // Pre-select all items
+        setSelectedIds(new Set(contentData.map((item) => item.id)));
 
         // If project has a narrative, fetch it and show review view
         // (unless user explicitly wants to select content via ?selectContent=true)
@@ -143,7 +141,8 @@ export default function ProjectPage({
     };
 
     fetchData();
-  }, [id, hasFetchedOnce, forceContentView]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, forceContentView]);
 
   const toggleSelection = (itemId: string) => {
     setSelectedIds((prev) => {
@@ -447,6 +446,30 @@ export default function ProjectPage({
                 Please keep this page open while your video renders
               </p>
             </Card>
+          ) : videoRender?.status === "failed" ? (
+            // Video render failed - show error and retry button
+            <div className="space-y-3">
+              <Card className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                    <XIcon className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Video Generation Failed</p>
+                    <p className="text-sm text-foreground-muted">
+                      {videoRender.error_message || "An error occurred during video generation"}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+              <Button
+                className="w-full"
+                onClick={handleRenderVideo}
+                disabled={!voiceProfile}
+              >
+                Try Again
+              </Button>
+            </div>
           ) : (
             // Ready to generate
             <>
