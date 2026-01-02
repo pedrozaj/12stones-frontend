@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, use } from "react";
+import { useState, useEffect, useRef, use, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card } from "@/components/ui";
@@ -49,12 +49,7 @@ interface Project {
   current_narrative_id: string | null;
 }
 
-export default function ProjectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+function ProjectPageContent({ id }: { id: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const forceContentView = searchParams.get("selectContent") === "true";
@@ -187,6 +182,8 @@ export default function ProjectPage({
     }
 
     setIsGenerating(true);
+    setError(null);
+
     try {
       console.log("[Narrative] Starting generation with", selectedIds.size, "items");
 
@@ -209,27 +206,49 @@ export default function ProjectPage({
 
       // Trigger narrative generation
       console.log("[Narrative] Calling narrative regenerate API...");
-      const result = await api.post(`/api/projects/${id}/narratives/regenerate`);
-      console.log("[Narrative] API response:", result);
+      const narrativeResult = await api.post<Narrative>(`/api/projects/${id}/narratives/regenerate`);
+      console.log("[Narrative] API response:", narrativeResult);
 
-      // Check if still mounted before navigating
+      // Validate that we got a narrative back
+      if (!narrativeResult || !narrativeResult.id) {
+        throw new Error("No narrative returned from API");
+      }
+
+      // Fetch updated project to confirm narrative was set
+      const updatedProject = await api.get<Project>(`/api/projects/${id}`);
+      console.log("[Narrative] Updated project:", updatedProject);
+
+      if (!updatedProject.current_narrative_id) {
+        console.warn("[Narrative] Project doesn't have narrative ID set, but we got one:", narrativeResult.id);
+      }
+
+      // Check if still mounted before updating state
       if (!isMountedRef.current) {
-        console.log("[Narrative] Component unmounted before redirect, aborting");
+        console.log("[Narrative] Component unmounted before state update, aborting");
         return;
       }
 
+      // Update local state with the narrative and project data
+      setNarrative(narrativeResult);
+      setProject(updatedProject);
+
       // Mark that we're navigating to prevent state updates
       isNavigatingRef.current = true;
-      console.log("[Narrative] Redirecting to voice page...");
+      console.log("[Narrative] Narrative generated successfully. Redirecting to voice page...");
 
-      // Use window.location for more reliable navigation
-      window.location.href = `/voice?project=${id}`;
+      // Small delay to ensure state is settled before navigation
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Navigate to voice page
+      router.push(`/voice?project=${id}`);
     } catch (err) {
       console.error("[Narrative] FAILED:", err);
       if (isMountedRef.current) {
         const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        setError(`Failed to generate narrative: ${errorMessage}`);
         alert(`Failed to generate narrative: ${errorMessage}`);
         setIsGenerating(false);
+        isNavigatingRef.current = false;
       }
     }
     // Note: Don't reset isGenerating on success since we're navigating away
@@ -844,4 +863,36 @@ function getProgressStage(progress: number): string {
   if (progress < 85) return "Creating video...";
   if (progress < 100) return "Uploading video...";
   return "Complete!";
+}
+
+// Loading component for Suspense
+function ProjectPageLoading() {
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="animate-pulse space-y-4">
+        <div className="h-8 bg-input rounded w-1/3" />
+        <div className="h-4 bg-input rounded w-1/2" />
+        <div className="grid grid-cols-3 gap-3 mt-8">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="aspect-square bg-input rounded-lg" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main export with Suspense boundary for useSearchParams
+export default function ProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+
+  return (
+    <Suspense fallback={<ProjectPageLoading />}>
+      <ProjectPageContent id={id} />
+    </Suspense>
+  );
 }
