@@ -172,7 +172,10 @@ export default function ProjectPage({
 
     setIsGenerating(true);
     try {
+      console.log("[Narrative] Starting generation with", selectedIds.size, "items");
+
       // Update which items are included
+      console.log("[Narrative] Updating content item inclusion...");
       await Promise.all(
         content.map((item) =>
           api.patch(`/api/projects/${id}/content/${item.id}`, {
@@ -180,15 +183,20 @@ export default function ProjectPage({
           })
         )
       );
+      console.log("[Narrative] Content items updated");
 
       // Trigger narrative generation
-      await api.post(`/api/projects/${id}/narratives/regenerate`);
+      console.log("[Narrative] Calling narrative regenerate API...");
+      const result = await api.post(`/api/projects/${id}/narratives/regenerate`);
+      console.log("[Narrative] API response:", result);
 
       // Redirect to voice setup
+      console.log("[Narrative] Redirecting to voice page...");
       router.push(`/voice?project=${id}`);
     } catch (err) {
-      console.error("Failed to generate narrative:", err);
-      alert("Failed to generate narrative. Please try again.");
+      console.error("[Narrative] FAILED:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      alert(`Failed to generate narrative: ${errorMessage}`);
     } finally {
       setIsGenerating(false);
     }
