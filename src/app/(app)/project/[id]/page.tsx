@@ -66,6 +66,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [view, setView] = useState<"content" | "review">("content");
   const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const isNavigatingRef = useRef(false);
 
@@ -232,15 +233,21 @@ function ProjectPageContent({ id }: { id: string }) {
       setNarrative(narrativeResult);
       setProject(updatedProject);
 
-      // Mark that we're navigating to prevent state updates
+      // Show success message
+      setSuccessMessage("Narrative created! Redirecting to voice selection...");
+      setIsGenerating(false);
+
+      console.log("[Narrative] Narrative generated successfully. Showing success message.");
+
+      // Mark that we're navigating to prevent further state updates
       isNavigatingRef.current = true;
-      console.log("[Narrative] Narrative generated successfully. Redirecting to voice page...");
 
-      // Small delay to ensure state is settled before navigation
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Navigate to voice page
-      router.push(`/voice?project=${id}`);
+      // Give user time to see success message, then navigate
+      setTimeout(() => {
+        console.log("[Narrative] Now navigating to voice page...");
+        // Use window.location for guaranteed navigation (avoids Next.js router issues)
+        window.location.href = `/voice?project=${id}`;
+      }, 1500);
     } catch (err) {
       console.error("[Narrative] FAILED:", err);
       if (isMountedRef.current) {
@@ -674,24 +681,39 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Action Button */}
       {content.length > 0 && (
         <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
-          <Button
-            className="w-full"
-            onClick={handleGenerateNarrative}
-            disabled={selectedIds.size === 0 || isGenerating}
-            isLoading={isGenerating}
-          >
-            {isGenerating ? (
-              "Generating Narrative..."
-            ) : (
-              <>
-                Continue with {selectedIds.size} items
-                <ArrowRightIcon className="w-4 h-4" />
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-center text-foreground-muted mt-2">
-            AI will analyze your content and create a personalized narrative
-          </p>
+          {successMessage ? (
+            <Card className="p-4 text-center bg-green-500/10 border-green-500/20">
+              <div className="flex items-center justify-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <CheckIcon className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <p className="font-medium text-green-700 dark:text-green-400">{successMessage}</p>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <>
+              <Button
+                className="w-full"
+                onClick={handleGenerateNarrative}
+                disabled={selectedIds.size === 0 || isGenerating}
+                isLoading={isGenerating}
+              >
+                {isGenerating ? (
+                  "Generating Narrative..."
+                ) : (
+                  <>
+                    Continue with {selectedIds.size} items
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-center text-foreground-muted mt-2">
+                AI will analyze your content and create a personalized narrative
+              </p>
+            </>
+          )}
         </div>
       )}
 
