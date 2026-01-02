@@ -1,21 +1,46 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PlayIcon, GridIcon, PlusIcon } from "@/components/icons";
+import { api } from "@/lib/api";
 
-// Empty array - data would come from API
-const MOCK_MEMORIALS: { id: string; title: string; year: string | null; type: string; count: number; coverUrl: string | null }[] = [];
+interface Project {
+  id: string;
+  title: string;
+  status: string;
+  type?: string;
+  content_count: number;
+  thumbnail_url: string | null;
+  current_video_id: string | null;
+  created_at: string;
+}
 
 function MemorialsContent() {
   const searchParams = useSearchParams();
   const typeFilter = searchParams.get("type");
   const [filter, setFilter] = useState<string | null>(typeFilter);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredMemorials = filter
-    ? MOCK_MEMORIALS.filter((m) => m.type === filter)
-    : MOCK_MEMORIALS;
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const data = await api.get<Project[]>("/api/projects");
+        setProjects(data);
+      } catch (err) {
+        console.error("Failed to fetch projects:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProjects();
+  }, []);
+
+  const filteredProjects = filter
+    ? projects.filter((p) => p.type === filter)
+    : projects;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -50,7 +75,13 @@ function MemorialsContent() {
       </div>
 
       {/* Grid */}
-      {filteredMemorials.length === 0 ? (
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="aspect-[3/4] rounded-radius-xl bg-input animate-pulse" />
+          ))}
+        </div>
+      ) : filteredProjects.length === 0 ? (
         <div className="text-center py-12">
           <GridIcon className="w-12 h-12 text-foreground-muted mx-auto mb-4" />
           <p className="text-foreground-muted">No memorials yet</p>
@@ -63,8 +94,8 @@ function MemorialsContent() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredMemorials.map((memorial) => (
-            <MemorialGridCard key={memorial.id} memorial={memorial} />
+          {filteredProjects.map((project) => (
+            <MemorialGridCard key={project.id} project={project} />
           ))}
         </div>
       )}
@@ -95,47 +126,47 @@ function FilterTab({
   );
 }
 
-function MemorialGridCard({
-  memorial,
-}: {
-  memorial: {
-    id: string;
-    title: string;
-    year: string | null;
-    type: string;
-    count: number;
-    coverUrl: string | null;
-  };
-}) {
+function MemorialGridCard({ project }: { project: Project }) {
+  const hasVideo = !!project.current_video_id;
+  const year = new Date(project.created_at).getFullYear().toString();
+
   return (
-    <Link href={`/memorial/${memorial.id}`} className="group">
+    <Link href={`/project/${project.id}`} className="group">
       <div className="relative aspect-[3/4] rounded-radius-xl overflow-hidden bg-input mb-2">
-        {/* Placeholder gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
+        {/* Thumbnail or placeholder gradient */}
+        {project.thumbnail_url ? (
+          <img src={project.thumbnail_url} alt={project.title} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
+        )}
 
-        {/* Play overlay */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
-            <PlayIcon className="w-5 h-5 text-primary ml-0.5" />
-          </div>
-        </div>
-
-        {/* Year badge */}
-        {memorial.year && (
-          <div className="absolute bottom-2 left-2 px-2 py-1 rounded-radius-md bg-black/50 text-white text-xs font-medium">
-            {memorial.year}
+        {/* Play overlay for videos */}
+        {hasVideo && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+            <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
+              <PlayIcon className="w-5 h-5 text-primary ml-0.5" />
+            </div>
           </div>
         )}
 
-        {/* Type badge */}
-        <div className="absolute top-2 right-2 px-2 py-1 rounded-radius-md bg-black/50 text-white text-xs capitalize">
-          {memorial.type}
+        {/* Year badge */}
+        <div className={`absolute bottom-2 left-2 px-2 py-1 rounded-radius-md text-white text-xs font-medium ${
+          hasVideo ? "bg-green-500/80" : "bg-black/50"
+        }`}>
+          {hasVideo ? "✓ " : ""}{year}
+        </div>
+
+        {/* Status badge */}
+        <div className={`absolute top-2 right-2 px-2 py-1 rounded-radius-md text-white text-xs ${
+          hasVideo ? "bg-green-500/80" : "bg-yellow-500/80"
+        }`}>
+          {hasVideo ? "Complete" : project.status === "draft" ? "Draft" : "Processing"}
         </div>
       </div>
       <h3 className="font-medium text-foreground text-sm truncate">
-        {memorial.title}
+        {project.title}
       </h3>
-      <p className="text-xs text-foreground-muted">{memorial.count} memories</p>
+      <p className="text-xs text-foreground-muted">{project.content_count} memories</p>
     </Link>
   );
 }
