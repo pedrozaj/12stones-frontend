@@ -397,17 +397,17 @@ export default function ProjectPage({
         {/* Video Render Progress or Generate Button */}
         <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
           {videoRender?.status === "completed" && videoRender.download_url ? (
-            // Video completed - show download/preview
-            <div className="space-y-3">
+            // Video completed - show download/preview and next steps
+            <div className="space-y-4">
               <Card className="p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
                     <CheckIcon className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">Video Ready!</p>
+                    <p className="font-medium text-foreground">Your Memorial is Ready!</p>
                     <p className="text-sm text-foreground-muted">
-                      Your memorial video has been created
+                      Download and share your video with loved ones
                     </p>
                   </div>
                 </div>
@@ -418,15 +418,36 @@ export default function ProjectPage({
                   poster="/video-poster.jpg"
                 />
               </Card>
+
+              {/* Primary action - Download */}
               <a
                 href={videoRender.download_url}
-                download
+                download={`${project?.title || 'memorial'}.mp4`}
                 className="block"
               >
                 <Button className="w-full">
                   Download Video
                 </Button>
               </a>
+
+              {/* Secondary actions */}
+              <div className="flex gap-3">
+                <Link href="/dashboard" className="flex-1">
+                  <Button variant="outline" className="w-full">
+                    Back to Dashboard
+                  </Button>
+                </Link>
+                <Link href="/create" className="flex-1">
+                  <Button variant="outline" className="w-full">
+                    Create Another
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Success message */}
+              <p className="text-xs text-center text-foreground-muted">
+                Your memorial has been saved to your collection
+              </p>
             </div>
           ) : isRendering && videoRender ? (
             // Rendering in progress - show progress
