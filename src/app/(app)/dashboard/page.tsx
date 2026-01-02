@@ -1,16 +1,45 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui";
 import { PlayIcon, ArrowRightIcon } from "@/components/icons";
+import { api } from "@/lib/api";
 
-// Empty arrays - data would come from API
-const MOCK_MILESTONES: { id: string; year: string; title: string; coverUrl: string; count: number }[] = [];
-const MOCK_FAMILY: { id: string; title: string; coverUrl: string; count: number }[] = [];
+interface Project {
+  id: string;
+  title: string;
+  status: string;
+  type?: string;
+  content_count: number;
+  thumbnail_url: string | null;
+  current_video_id: string | null;
+  created_at: string;
+}
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const data = await api.get<Project[]>("/api/projects");
+        setProjects(data);
+      } catch (err) {
+        console.error("Failed to fetch projects:", err);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+    fetchProjects();
+  }, []);
+
+  // Filter projects by type (for now, show all as milestones if no type)
+  const completedProjects = projects.filter(p => p.current_video_id);
+  const draftProjects = projects.filter(p => !p.current_video_id);
 
   const userName = user?.name?.split(" ")[0] || "Guest";
 
@@ -48,38 +77,50 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Mile "Stones" Section */}
-      <section className="px-4 py-6">
-        <SectionHeader title="Mile Stones" href="/memorials?type=milestones" />
-        <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
-          {MOCK_MILESTONES.map((milestone) => (
-            <MemorialCard
-              key={milestone.id}
-              id={milestone.id}
-              title={milestone.title}
-              subtitle={milestone.year}
-              coverUrl={milestone.coverUrl}
-              count={milestone.count}
-            />
-          ))}
-          <CreateCard type="milestone" />
-        </div>
-      </section>
+      {/* Completed Memorials Section */}
+      {completedProjects.length > 0 && (
+        <section className="px-4 py-6">
+          <SectionHeader title="Completed Memorials" href="/memorials" />
+          <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
+            {completedProjects.map((project) => (
+              <MemorialCard
+                key={project.id}
+                id={project.id}
+                title={project.title}
+                subtitle={new Date(project.created_at).getFullYear().toString()}
+                thumbnailUrl={project.thumbnail_url}
+                count={project.content_count}
+                hasVideo={true}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* Family Memorials Section */}
+      {/* Draft Projects Section */}
       <section className="px-4 py-6">
-        <SectionHeader title="Family Memorials" href="/memorials?type=family" />
+        <SectionHeader title="In Progress" href="/memorials" />
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
-          {MOCK_FAMILY.map((item) => (
-            <MemorialCard
-              key={item.id}
-              id={item.id}
-              title={item.title}
-              coverUrl={item.coverUrl}
-              count={item.count}
-            />
-          ))}
-          <CreateCard type="family" />
+          {isLoadingProjects ? (
+            <div className="flex gap-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="w-40 aspect-[3/4] rounded-radius-xl bg-input animate-pulse" />
+              ))}
+            </div>
+          ) : draftProjects.length > 0 ? (
+            draftProjects.map((project) => (
+              <MemorialCard
+                key={project.id}
+                id={project.id}
+                title={project.title}
+                subtitle={project.status === "draft" ? "Draft" : "Processing"}
+                thumbnailUrl={project.thumbnail_url}
+                count={project.content_count}
+                hasVideo={false}
+              />
+            ))
+          ) : null}
+          <CreateCard type="milestone" />
         </div>
       </section>
 
@@ -138,31 +179,42 @@ function MemorialCard({
   id,
   title,
   subtitle,
+  thumbnailUrl,
   count,
+  hasVideo,
 }: {
   id: string;
   title: string;
   subtitle?: string;
-  coverUrl: string;
+  thumbnailUrl: string | null;
   count: number;
+  hasVideo: boolean;
 }) {
   return (
-    <Link href={`/memorial/${id}`} className="flex-shrink-0 w-40 group">
+    <Link href={`/project/${id}`} className="flex-shrink-0 w-40 group">
       <div className="relative aspect-[3/4] rounded-radius-xl overflow-hidden bg-input mb-2">
-        {/* Placeholder gradient for demo */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
+        {/* Thumbnail or placeholder gradient */}
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt={title} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
+        )}
 
-        {/* Play button overlay */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
-            <PlayIcon className="w-5 h-5 text-primary ml-0.5" />
+        {/* Play button overlay for completed videos */}
+        {hasVideo && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+            <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
+              <PlayIcon className="w-5 h-5 text-primary ml-0.5" />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Year badge */}
+        {/* Status/year badge */}
         {subtitle && (
-          <div className="absolute bottom-2 left-2 px-2 py-1 rounded-radius-md bg-black/50 text-white text-xs font-medium">
-            {subtitle}
+          <div className={`absolute bottom-2 left-2 px-2 py-1 rounded-radius-md text-white text-xs font-medium ${
+            hasVideo ? "bg-green-500/80" : "bg-black/50"
+          }`}>
+            {hasVideo ? "✓ " : ""}{subtitle}
           </div>
         )}
       </div>
