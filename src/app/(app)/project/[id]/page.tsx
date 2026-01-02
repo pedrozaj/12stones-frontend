@@ -70,7 +70,6 @@ function ProjectPageContent({ id }: { id: string }) {
   const [redirectToVoice, setRedirectToVoice] = useState(false);
   const isMountedRef = useRef(true);
   const isNavigatingRef = useRef(false);
-  const redirectLinkRef = useRef<HTMLAnchorElement>(null);
 
   // Track mounted state
   useEffect(() => {
@@ -83,12 +82,13 @@ function ProjectPageContent({ id }: { id: string }) {
   // Safari-friendly redirect: use useEffect to trigger navigation
   // This works because useEffect runs outside the async context
   useEffect(() => {
-    if (redirectToVoice && redirectLinkRef.current) {
-      console.log("[Narrative] useEffect redirect triggered, clicking link...");
-      // Programmatically click the hidden link - Safari allows this
-      redirectLinkRef.current.click();
+    if (redirectToVoice) {
+      console.log("[Narrative] useEffect redirect triggered, navigating...");
+      const voiceUrl = `/voice?project=${id}`;
+      // Use router.push - should work in Safari from useEffect
+      router.push(voiceUrl);
     }
-  }, [redirectToVoice]);
+  }, [redirectToVoice, id, router]);
 
   useEffect(() => {
     // Only fetch data once on mount
@@ -690,15 +690,6 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Action Button */}
       {content.length > 0 && (
         <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
-          {/* Hidden link for Safari-friendly redirect */}
-          <a
-            ref={redirectLinkRef}
-            href={`/voice?project=${id}`}
-            style={{ display: 'none' }}
-            aria-hidden="true"
-          >
-            Navigate to voice
-          </a>
           {successMessage ? (
             <Card className="p-4 text-center bg-green-500/10 border-green-500/20">
               <div className="flex flex-col items-center gap-3">
