@@ -233,21 +233,25 @@ function ProjectPageContent({ id }: { id: string }) {
       setNarrative(narrativeResult);
       setProject(updatedProject);
 
-      // Show success message
-      setSuccessMessage("Narrative created! Redirecting to voice selection...");
+      // Show success message with link (Safari-friendly - user can click if auto-redirect fails)
+      setSuccessMessage("Narrative created! Redirecting...");
       setIsGenerating(false);
 
-      console.log("[Narrative] Narrative generated successfully. Showing success message.");
+      console.log("[Narrative] Narrative generated successfully. Navigating to voice page...");
 
       // Mark that we're navigating to prevent further state updates
       isNavigatingRef.current = true;
 
-      // Give user time to see success message, then navigate
-      setTimeout(() => {
-        console.log("[Narrative] Now navigating to voice page...");
-        // Use window.location for guaranteed navigation (avoids Next.js router issues)
-        window.location.href = `/voice?project=${id}`;
-      }, 1500);
+      // Navigate immediately using multiple methods for Safari compatibility
+      const voiceUrl = `/voice?project=${id}`;
+
+      // Method 1: Try location.assign (works better in Safari)
+      try {
+        window.location.assign(voiceUrl);
+      } catch {
+        // Method 2: Fallback to href
+        window.location.href = voiceUrl;
+      }
     } catch (err) {
       console.error("[Narrative] FAILED:", err);
       if (isMountedRef.current) {
@@ -683,13 +687,19 @@ function ProjectPageContent({ id }: { id: string }) {
         <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
           {successMessage ? (
             <Card className="p-4 text-center bg-green-500/10 border-green-500/20">
-              <div className="flex items-center justify-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <CheckIcon className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <CheckIcon className="w-5 h-5 text-green-500" />
+                  </div>
                   <p className="font-medium text-green-700 dark:text-green-400">{successMessage}</p>
                 </div>
+                <Link
+                  href={`/voice?project=${id}`}
+                  className="text-sm text-primary underline hover:text-primary/80"
+                >
+                  Click here if not redirected automatically
+                </Link>
               </div>
             </Card>
           ) : (
