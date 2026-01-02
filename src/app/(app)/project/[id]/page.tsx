@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card } from "@/components/ui";
@@ -71,6 +71,16 @@ export default function ProjectPage({
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [view, setView] = useState<"content" | "review">("content");
   const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
+  const isMountedRef = useRef(true);
+  const isNavigatingRef = useRef(false);
+
+  // Track mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Only fetch data once on mount
@@ -170,36 +180,59 @@ export default function ProjectPage({
       return;
     }
 
+    // Prevent double-submission
+    if (isGenerating || isNavigatingRef.current) {
+      console.log("[Narrative] Already in progress, skipping");
+      return;
+    }
+
     setIsGenerating(true);
     try {
       console.log("[Narrative] Starting generation with", selectedIds.size, "items");
 
       // Update which items are included
       console.log("[Narrative] Updating content item inclusion...");
-      await Promise.all(
-        content.map((item) =>
-          api.patch(`/api/projects/${id}/content/${item.id}`, {
-            included_in_narrative: selectedIds.has(item.id),
-          })
-        )
+      const updatePromises = content.map((item) =>
+        api.patch(`/api/projects/${id}/content/${item.id}`, {
+          included_in_narrative: selectedIds.has(item.id),
+        })
       );
+
+      await Promise.all(updatePromises);
       console.log("[Narrative] Content items updated");
+
+      // Check if still mounted
+      if (!isMountedRef.current) {
+        console.log("[Narrative] Component unmounted, aborting");
+        return;
+      }
 
       // Trigger narrative generation
       console.log("[Narrative] Calling narrative regenerate API...");
       const result = await api.post(`/api/projects/${id}/narratives/regenerate`);
       console.log("[Narrative] API response:", result);
 
-      // Redirect to voice setup
+      // Check if still mounted before navigating
+      if (!isMountedRef.current) {
+        console.log("[Narrative] Component unmounted before redirect, aborting");
+        return;
+      }
+
+      // Mark that we're navigating to prevent state updates
+      isNavigatingRef.current = true;
       console.log("[Narrative] Redirecting to voice page...");
-      router.push(`/voice?project=${id}`);
+
+      // Use window.location for more reliable navigation
+      window.location.href = `/voice?project=${id}`;
     } catch (err) {
       console.error("[Narrative] FAILED:", err);
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      alert(`Failed to generate narrative: ${errorMessage}`);
-    } finally {
-      setIsGenerating(false);
+      if (isMountedRef.current) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        alert(`Failed to generate narrative: ${errorMessage}`);
+        setIsGenerating(false);
+      }
     }
+    // Note: Don't reset isGenerating on success since we're navigating away
   };
 
   const handleRenderVideo = async () => {
