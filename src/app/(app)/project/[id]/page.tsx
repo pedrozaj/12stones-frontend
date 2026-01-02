@@ -83,18 +83,39 @@ function ProjectPageContent({ id }: { id: string }) {
   // This works because useEffect runs outside the async context
   useEffect(() => {
     if (redirectToVoice) {
-      console.log("[Narrative] useEffect redirect triggered, navigating...");
+      console.log("[Narrative] useEffect redirect triggered");
+      console.log("[Narrative] Current URL:", window.location.href);
+      console.log("[Narrative] Target URL:", `/voice?project=${id}`);
+
       const voiceUrl = `/voice?project=${id}`;
-      // Use router.push - should work in Safari from useEffect
-      router.push(voiceUrl);
+
+      try {
+        console.log("[Narrative] Calling router.push...");
+        router.push(voiceUrl);
+        console.log("[Narrative] router.push called successfully");
+      } catch (err) {
+        console.error("[Narrative] router.push failed:", err);
+        // Fallback: try window.location
+        console.log("[Narrative] Trying window.location fallback...");
+        window.location.href = voiceUrl;
+      }
     }
   }, [redirectToVoice, id, router]);
 
   useEffect(() => {
     // Only fetch data once on mount
-    if (hasFetchedOnce) return;
+    console.log("[Fetch] useEffect called, hasFetchedOnce:", hasFetchedOnce, "redirectToVoice:", redirectToVoice);
+    if (hasFetchedOnce) {
+      console.log("[Fetch] Skipping fetch - already fetched");
+      return;
+    }
+    if (redirectToVoice) {
+      console.log("[Fetch] Skipping fetch - redirect in progress");
+      return;
+    }
 
     const fetchData = async () => {
+      console.log("[Fetch] Starting data fetch...");
       setIsLoading(true);
 
       try {
