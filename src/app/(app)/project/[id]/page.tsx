@@ -67,8 +67,10 @@ function ProjectPageContent({ id }: { id: string }) {
   const [view, setView] = useState<"content" | "review">("content");
   const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [redirectToVoice, setRedirectToVoice] = useState(false);
   const isMountedRef = useRef(true);
   const isNavigatingRef = useRef(false);
+  const redirectLinkRef = useRef<HTMLAnchorElement>(null);
 
   // Track mounted state
   useEffect(() => {
@@ -77,6 +79,16 @@ function ProjectPageContent({ id }: { id: string }) {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Safari-friendly redirect: use useEffect to trigger navigation
+  // This works because useEffect runs outside the async context
+  useEffect(() => {
+    if (redirectToVoice && redirectLinkRef.current) {
+      console.log("[Narrative] useEffect redirect triggered, clicking link...");
+      // Programmatically click the hidden link - Safari allows this
+      redirectLinkRef.current.click();
+    }
+  }, [redirectToVoice]);
 
   useEffect(() => {
     // Only fetch data once on mount
@@ -233,25 +245,18 @@ function ProjectPageContent({ id }: { id: string }) {
       setNarrative(narrativeResult);
       setProject(updatedProject);
 
-      // Show success message with link (Safari-friendly - user can click if auto-redirect fails)
-      setSuccessMessage("Narrative created! Redirecting...");
+      // Show success message
+      setSuccessMessage("Narrative created! Redirecting to voice selection...");
       setIsGenerating(false);
 
-      console.log("[Narrative] Narrative generated successfully. Navigating to voice page...");
+      console.log("[Narrative] Narrative generated successfully. Setting redirect state...");
 
       // Mark that we're navigating to prevent further state updates
       isNavigatingRef.current = true;
 
-      // Navigate immediately using multiple methods for Safari compatibility
-      const voiceUrl = `/voice?project=${id}`;
-
-      // Method 1: Try location.assign (works better in Safari)
-      try {
-        window.location.assign(voiceUrl);
-      } catch {
-        // Method 2: Fallback to href
-        window.location.href = voiceUrl;
-      }
+      // Trigger redirect via state change - useEffect will handle the actual navigation
+      // This is Safari-friendly because the navigation happens outside the async context
+      setRedirectToVoice(true);
     } catch (err) {
       console.error("[Narrative] FAILED:", err);
       if (isMountedRef.current) {
@@ -685,6 +690,15 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Action Button */}
       {content.length > 0 && (
         <div className="sticky bottom-20 bg-background/80 backdrop-blur py-4 -mx-4 px-4">
+          {/* Hidden link for Safari-friendly redirect */}
+          <a
+            ref={redirectLinkRef}
+            href={`/voice?project=${id}`}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+          >
+            Navigate to voice
+          </a>
           {successMessage ? (
             <Card className="p-4 text-center bg-green-500/10 border-green-500/20">
               <div className="flex flex-col items-center gap-3">
